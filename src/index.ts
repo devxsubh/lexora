@@ -59,6 +59,11 @@ const connect = async (): Promise<void> => {
 connect();
 
 const exitHandler = (): void => {
+	// On Vercel serverless, never call process.exit — the platform recycles
+	// the execution context automatically. Calling exit crashes the function
+	// mid-request with no recovery path.
+	if (process.env.VERCEL) return;
+
 	if (server) {
 		server.close(() => {
 			logger.warn('Server closed');
