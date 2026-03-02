@@ -32,10 +32,7 @@
 1. **One-time on the instance**
    - **Docker**: Install Docker (e.g. Amazon Linux: `sudo yum install -y docker && sudo systemctl enable docker && sudo systemctl start docker`, then `sudo usermod -aG docker ec2-user`; re-login).
    - **AWS CLI**: For ECR login from EC2 (`aws ecr get-login-password`). Install if not present: `curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && unzip -q awscliv2.zip && sudo ./aws/install`.
-   - **IAM**: Attach an IAM role (instance profile) to the EC2 instance with policy allowing:
-     - `ecr:GetAuthorizationToken`
-     - `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` for your ECR repo
-     so the deploy script can `docker pull` without storing AWS keys on the server.
+   - **ECR credentials**: The workflow passes `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` to the deploy script on EC2, so the script uses the same credentials that pushed the image. No IAM instance profile is required on EC2 for ECR. (Optional: you can instead attach an IAM role to the instance with `ecr:GetAuthorizationToken` and `ecr:BatchGetImage`/`ecr:GetDownloadUrlForLayer` and omit passing credentials; then the script uses the instance profile.)
    - Create app directory and **`.env`**: `mkdir -p /home/ec2-user/lexora` and put production env (NODE_ENV, DATABASE_URI, JWT, SMTP, etc.) in `/home/ec2-user/lexora/.env`. Do not commit secrets; they live only on EC2.
 
 2. **SSH**

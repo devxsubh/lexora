@@ -110,6 +110,8 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           ECR_IMAGE: ${{ steps.ecr.outputs.image }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           set -e
           trap 'rm -f ~/.ssh/deploy_key' EXIT
@@ -129,5 +131,5 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p "$EC2_PORT" \
             $EC2_USER@$EC2_HOST \
             "chmod +x /tmp/deploy-ec2.sh && \
-             export ECR_IMAGE='$ECR_IMAGE' APP_PORT='$APP_PORT' ENV_FILE='$ENV_FILE' HEALTH_DELAY_SEC=3 AWS_REGION='$AWS_REGION' && \
+             export ECR_IMAGE='$ECR_IMAGE' APP_PORT='$APP_PORT' ENV_FILE='$ENV_FILE' HEALTH_DELAY_SEC=3 AWS_REGION='$AWS_REGION' AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' && \
              /tmp/deploy-ec2.sh"
