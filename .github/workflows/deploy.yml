@@ -30,9 +30,11 @@ jobs:
           openssl rsa -in /tmp/jwt_private.pem -pubout -out /tmp/jwt_public.pem
           echo "jwt_private_b64<<DELIM_JWT_PRIV" >> $GITHUB_OUTPUT
           base64 -w0 < /tmp/jwt_private.pem >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
           echo "DELIM_JWT_PRIV" >> $GITHUB_OUTPUT
           echo "jwt_public_b64<<DELIM_JWT_PUB" >> $GITHUB_OUTPUT
           base64 -w0 < /tmp/jwt_public.pem >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
           echo "DELIM_JWT_PUB" >> $GITHUB_OUTPUT
           echo "test_email=test-$(openssl rand -hex 8)@example.com" >> $GITHUB_OUTPUT
           echo "test_password=$(openssl rand -base64 16)" >> $GITHUB_OUTPUT
