@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import config from './config';
 import logger from './logger';
 
+mongoose.set('strictQuery', false);
+
 const reconnectTimeout = 5000;
 
 const connect = (): void => {

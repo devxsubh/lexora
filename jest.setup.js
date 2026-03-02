@@ -5,6 +5,9 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 require('dotenv').config({ path: path.resolve(process.cwd(), '.env.test') });
 require('dotenv').config();
 
+// Suppress Mongoose 7 deprecation warning for strictQuery default change
+require('mongoose').set('strictQuery', false);
+
 // Fallbacks for CI / environments without .env.test (required by config validation)
 if (!process.env.DATABASE_URI) {
 	process.env.DATABASE_URI = 'mongodb://localhost:27017/lexora-test';

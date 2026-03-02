@@ -3,6 +3,7 @@
 
 # misc
 .env
+*.pem
 
 # build
 /dist

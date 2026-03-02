@@ -4,6 +4,8 @@ import app from './app';
 import initialData from '~/config/initialData';
 import logger from '~/config/logger';
 
+mongoose.set('strictQuery', false);
+
 let server: import('http').Server | undefined;
 
 const db = mongoose.connection;
