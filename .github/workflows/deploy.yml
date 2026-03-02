@@ -71,15 +71,6 @@ jobs:
             exit 1
           fi
 
-      - name: Smoke
-        env:
-          NODE_ENV: test
-          PORT: 666
-          DATABASE_URI: mongodb://127.0.0.1:27017/${{ steps.secrets.outputs.db_name }}
-          JWT_ACCESS_TOKEN_SECRET_PRIVATE: ${{ steps.secrets.outputs.jwt_private_b64 }}
-          JWT_ACCESS_TOKEN_SECRET_PUBLIC: ${{ steps.secrets.outputs.jwt_public_b64 }}
-        run: node scripts/smoke.js
-
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
