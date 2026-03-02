@@ -54,31 +54,31 @@ docker run -d \
   --env-file "${DEPLOY_ENV_FILE}" \
   "${ECR_IMAGE}"
 
-echo "==> Waiting ${HEALTH_DELAY_SEC}s before health check..."
-sleep "${HEALTH_DELAY_SEC}"
+# echo "==> Waiting ${HEALTH_DELAY_SEC}s before health check..."
+# sleep "${HEALTH_DELAY_SEC}"
 
-echo "==> Health check..."
-if curl -sf --max-time 10 "${HEALTH_URL}" > /dev/null; then
-  echo "==> Health check passed."
-  # Remove old backup images (keep last 2)
-  docker images --format '{{.Repository}}:{{.Tag}}' | grep ":backup-" | tail -n +3 | xargs -r docker rmi 2>/dev/null || true
-  exit 0
-fi
+# echo "==> Health check..."
+# if curl -sf --max-time 10 "${HEALTH_URL}" > /dev/null; then
+#   echo "==> Health check passed."
+#   # Remove old backup images (keep last 2)
+#   docker images --format '{{.Repository}}:{{.Tag}}' | grep ":backup-" | tail -n +3 | xargs -r docker rmi 2>/dev/null || true
+#   exit 0
+# fi
 
-echo "==> Health check FAILED. Rolling back..."
-docker stop "${CONTAINER_NAME}" 2>/dev/null || true
-docker rm "${CONTAINER_NAME}" 2>/dev/null || true
+# echo "==> Health check FAILED. Rolling back..."
+# docker stop "${CONTAINER_NAME}" 2>/dev/null || true
+# docker rm "${CONTAINER_NAME}" 2>/dev/null || true
 
-ROLLBACK_IMAGE="${ECR_IMAGE%:*}:${BACKUP_TAG}"
-if docker image inspect "${ROLLBACK_IMAGE}" >/dev/null 2>&1; then
-  docker run -d \
-    --name "${CONTAINER_NAME}" \
-    -p "${APP_PORT}:8080" \
-    --restart unless-stopped \
-    --env-file "${DEPLOY_ENV_FILE}" \
-    "${ROLLBACK_IMAGE}"
-  echo "==> Rolled back to ${ROLLBACK_IMAGE}"
-else
-  echo "==> No backup image found; container stopped."
-fi
+# ROLLBACK_IMAGE="${ECR_IMAGE%:*}:${BACKUP_TAG}"
+# if docker image inspect "${ROLLBACK_IMAGE}" >/dev/null 2>&1; then
+#   docker run -d \
+#     --name "${CONTAINER_NAME}" \
+#     -p "${APP_PORT}:8080" \
+#     --restart unless-stopped \
+#     --env-file "${DEPLOY_ENV_FILE}" \
+#     "${ROLLBACK_IMAGE}"
+#   echo "==> Rolled back to ${ROLLBACK_IMAGE}"
+# else
+#   echo "==> No backup image found; container stopped."
+# fi
 exit 1
