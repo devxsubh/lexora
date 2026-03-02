@@ -33,24 +33,21 @@ const connect = async (): Promise<void> => {
 	try {
 		await mongoose.connect(config.DATABASE_URI, config.DATABASE_OPTIONS);
 		logger.info('🚀 Connected to MongoDB end!');
-		if (config.SEED_DATABASE && !process.env.VERCEL) {
+		if (config.SEED_DATABASE) {
 			await initialData();
 			logger.info('🚀 Initial MongoDB!');
 		}
-		// On Vercel we only export the app; the platform handles the server
-		if (!process.env.VERCEL) {
-			server = app.listen(config.PORT, config.HOST, () => {
-				logger.info(`🚀 Host: http://${config.HOST}:${config.PORT}`);
-				logger.info('/$$');
-				logger.info('| $$');
-				logger.info('| $$        /$$$$$$  /$$   /$$  /$$$$$$   /$$$$$$  /$$$$$$ ');
-				logger.info('| $$       /$$__  $$|  $$ /$$/ /$$__  $$ /$$__  $$|____  $$');
-				logger.info('| $$      | $$$$$$$$ \\  $$$$/ | $$  \\ $$| $$  \\__/ /$$$$$$$');
-				logger.info('| $$      | $$_____/  >$$  $$ | $$  | $$| $$      /$$__  $$');
-				logger.info('| $$$$$$$$|  $$$$$$$ /$$/\\  $$|  $$$$$$/| $$     |  $$$$$$$');
-				logger.info('|________/ \\_______/|__/  \\__/ \\______/ |__/      \\_______/');
-			});
-		}
+		server = app.listen(config.PORT, config.HOST, () => {
+			logger.info(`🚀 Host: http://${config.HOST}:${config.PORT}`);
+			logger.info('/$$');
+			logger.info('| $$');
+			logger.info('| $$        /$$$$$$  /$$   /$$  /$$$$$$   /$$$$$$  /$$$$$$ ');
+			logger.info('| $$       /$$__  $$|  $$ /$$/ /$$__  $$ /$$__  $$|____  $$');
+			logger.info('| $$      | $$$$$$$$ \\  $$$$/ | $$  \\ $$| $$  \\__/ /$$$$$$$');
+			logger.info('| $$      | $$_____/  >$$  $$ | $$  | $$| $$      /$$__  $$');
+			logger.info('| $$$$$$$$|  $$$$$$$ /$$/\\  $$|  $$$$$$/| $$     |  $$$$$$$');
+			logger.info('|________/ \\_______/|__/  \\__/ \\______/ |__/      \\_______/');
+		});
 	} catch (err) {
 		logger.error(`MongoDB connection error: ${err}`);
 	}
@@ -59,11 +56,6 @@ const connect = async (): Promise<void> => {
 connect();
 
 const exitHandler = (): void => {
-	// On Vercel serverless, never call process.exit — the platform recycles
-	// the execution context automatically. Calling exit crashes the function
-	// mid-request with no recovery path.
-	if (process.env.VERCEL) return;
-
 	if (server) {
 		server.close(() => {
 			logger.warn('Server closed');
@@ -103,5 +95,4 @@ process.on('SIGTERM', () => {
 	}
 });
 
-// Export the Express app for Vercel (serverless) – see https://vercel.com/docs/frameworks/backend/express
 export default app;

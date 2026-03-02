@@ -1,0 +1,69 @@
+# Deploy to AWS EC2 on push to main.
+# Required secrets: EC2_SSH_PRIVATE_KEY, EC2_HOST
+# Optional secrets: EC2_USER (default ec2-user), EC2_PORT (default 22), APP_DIR (default ~/lexora)
+
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          APP_DIR: ${{ secrets.APP_DIR }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          EC2_USER="${EC2_USER:-ec2-user}"
+          EC2_PORT="${EC2_PORT:-22}"
+          APP_DIR="${APP_DIR:-~/lexora}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$EC2_PORT" -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          # Sync built output and app files (exclude node_modules, .git, etc.)
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p $EC2_PORT" \
+            dist/ package.json package-lock.json ecosystem.config.js \
+            $EC2_USER@$EC2_HOST:$APP_DIR/
+
+          # Sync public folder if it exists
+          if [ -d public ]; then
+            rsync -avz -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p $EC2_PORT" \
+              public/ $EC2_USER@$EC2_HOST:$APP_DIR/public/
+          fi
+
+          # On EC2: install production deps and restart app with PM2
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p "$EC2_PORT" \
+            $EC2_USER@$EC2_HOST "cd $APP_DIR && npm ci --omit=dev && npx pm2 reload ecosystem.config.js --env production || npx pm2 start ecosystem.config.js --env production"
+
+          rm -f ~/.ssh/deploy_key

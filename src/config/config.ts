@@ -9,7 +9,7 @@ const envValidate = Joi.object()
 		NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
 		APP_NAME: Joi.string().allow('').empty('').default('App Name'),
 		HOST: Joi.string().allow('').empty('').default('0.0.0.0'),
-		PORT: Joi.number().allow('').empty('').default(666),
+		PORT: Joi.number().allow('').empty('').default(8080),
 
 		DATABASE_URI: Joi.string().required(),
 
@@ -27,8 +27,8 @@ const envValidate = Joi.object()
 		SMTP_PASSWORD: Joi.string().allow('').empty(''),
 		EMAIL_FROM: Joi.string().allow('').empty(''),
 
-		FRONTEND_URL: Joi.string().allow('').empty('').default('http://localhost:777'),
-		IMAGE_URL: Joi.string().allow('').empty('').default('http://localhost:666/images'),
+		FRONTEND_URL: Joi.string().allow('').empty('').default('http://localhost:3000'),
+		IMAGE_URL: Joi.string().allow('').empty('').default('http://localhost:8080/images'),
 
 		CORS_ORIGIN: Joi.string().allow('').empty('').default('*'),
 

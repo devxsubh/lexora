@@ -1,7 +1,7 @@
 module.exports = {
 	apps: [
 		{
-			name: 'backend-node-express"',
+			name: 'backend-node-express',
 			script: 'dist/index.js',
 			instances: 'max',
 			env: {
