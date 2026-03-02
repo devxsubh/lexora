@@ -24,7 +24,7 @@ if (!process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE || !process.env.JWT_ACCESS_TOKE
 	process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC = process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC || Buffer.from(publicKey, 'utf8').toString('base64');
 }
 
-const PORT = Number(process.env.PORT) || 666;
+const PORT = Number(process.env.PORT) || 8080;
 const DIST_INDEX = path.join(__dirname, '..', 'dist', 'index.js');
 
 const child = spawn(process.execPath, [DIST_INDEX], {
