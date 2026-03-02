@@ -47,7 +47,9 @@ const envValidate = Joi.object()
 		CLOUDINARY_API_SECRET: Joi.string().allow('').empty('').default(''),
 
 		SEED_DATABASE: Joi.boolean().allow('').empty('').default(false),
-		SEED_DEFAULT_PASSWORD: Joi.string().allow('').empty('')
+		SEED_DEFAULT_PASSWORD: Joi.string().allow('').empty(''),
+
+		LOG_TZ: Joi.string().allow('').empty('').default('')
 	})
 	.unknown();
 
@@ -93,6 +95,7 @@ export interface AppConfig {
 		VERIFY_EMAIL: string;
 		RESET_PASSWORD: string;
 	};
+	LOG_TZ: string;
 }
 
 const config: AppConfig = {
@@ -145,7 +148,9 @@ const config: AppConfig = {
 		REFRESH: 'refresh',
 		VERIFY_EMAIL: 'verifyEmail',
 		RESET_PASSWORD: 'resetPassword'
-	}
+	},
+
+	LOG_TZ: (env.LOG_TZ as string) ?? ''
 };
 
 export default config;
