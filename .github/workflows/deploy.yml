@@ -33,6 +33,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify build output
+        run: |
+          if [ ! -f dist/index.js ]; then
+            echo "::error::Build failed: dist/index.js not found"
+            exit 1
+          fi
+
       - name: Deploy to EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -50,10 +57,10 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "$EC2_PORT" -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          # Sync built output and app files (exclude node_modules, .git, etc.)
+          # Sync built output and app files (keep dist/ folder so PM2 finds dist/index.js)
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p $EC2_PORT" \
-            dist/ package.json package-lock.json ecosystem.config.js \
+            dist package.json package-lock.json ecosystem.config.js \
             $EC2_USER@$EC2_HOST:$APP_DIR/
 
           # Sync public folder if it exists
