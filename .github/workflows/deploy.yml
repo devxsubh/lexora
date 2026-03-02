@@ -62,8 +62,8 @@ jobs:
               public/ $EC2_USER@$EC2_HOST:$APP_DIR/public/
           fi
 
-          # On EC2: install production deps and restart app with PM2
+          # On EC2: source nvm (or profile) so npm/npx are in PATH, then install deps and restart with PM2
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p "$EC2_PORT" \
-            $EC2_USER@$EC2_HOST "cd $APP_DIR && npm ci --omit=dev && npx pm2 reload ecosystem.config.js --env production || npx pm2 start ecosystem.config.js --env production"
+            $EC2_USER@$EC2_HOST "source ~/.nvm/nvm.sh 2>/dev/null || source ~/.bashrc 2>/dev/null || true; cd $APP_DIR && npm ci --omit=dev && npx pm2 reload ecosystem.config.js --env production || npx pm2 start ecosystem.config.js --env production"
 
           rm -f ~/.ssh/deploy_key

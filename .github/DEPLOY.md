@@ -24,8 +24,8 @@
 ### EC2 setup
 
 1. **One-time on the instance**
-   - Node.js 20 (e.g. `nvm install 20` or Amazon Linux 2/2023 Node repo).
-   - PM2: `npm install -g pm2`.
+   - Node.js 20 (e.g. `nvm install 20` or Amazon Linux 2/2023 Node repo). If you use **nvm**, the deploy workflow sources `~/.nvm/nvm.sh` over SSH so `npm`/`npx` are found; ensure nvm is installed in the deploy user’s home (e.g. `~/.nvm`).
+   - PM2: `npm install -g pm2` (after Node is in PATH).
    - Create app directory: `mkdir -p ~/lexora` (or your `APP_DIR`).
    - Create `logs` dir if you use file logging: `mkdir -p ~/lexora/logs`.
    - Add a `.env` (or set env in `ecosystem.config.js`) with production config; do not commit secrets.
