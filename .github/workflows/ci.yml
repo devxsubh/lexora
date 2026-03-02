@@ -31,15 +31,15 @@ jobs:
         run: |
           # Unique DB name per run (no cross-run pollution)
           echo "db_name=lexora_ci_${{ github.run_id }}" >> $GITHUB_OUTPUT
-          # JWT key pair (RS256) - base64 for config
+          # JWT key pair (RS256) - base64 for config (delimiter must not appear in base64)
           openssl genrsa -out /tmp/jwt_private.pem 2048
           openssl rsa -in /tmp/jwt_private.pem -pubout -out /tmp/jwt_public.pem
-          echo "jwt_private_b64<<EOF" >> $GITHUB_OUTPUT
+          echo "jwt_private_b64<<DELIM_JWT_PRIV" >> $GITHUB_OUTPUT
           base64 -w0 < /tmp/jwt_private.pem >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "jwt_public_b64<<EOF" >> $GITHUB_OUTPUT
+          echo "DELIM_JWT_PRIV" >> $GITHUB_OUTPUT
+          echo "jwt_public_b64<<DELIM_JWT_PUB" >> $GITHUB_OUTPUT
           base64 -w0 < /tmp/jwt_public.pem >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "DELIM_JWT_PUB" >> $GITHUB_OUTPUT
           # Test user credentials for integration tests (random, no real email)
           echo "test_email=test-$(openssl rand -hex 8)@example.com" >> $GITHUB_OUTPUT
           echo "test_password=$(openssl rand -base64 16)" >> $GITHUB_OUTPUT
