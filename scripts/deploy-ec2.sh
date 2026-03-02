@@ -29,12 +29,29 @@ echo "==> Stopping and removing existing container..."
 docker stop "${CONTAINER_NAME}" 2>/dev/null || true
 docker rm "${CONTAINER_NAME}" 2>/dev/null || true
 
+# Docker rejects env vars whose names contain whitespace; sanitize .env (trim keys and values)
+DEPLOY_ENV_FILE="${ENV_FILE}"
+if [ -f "${ENV_FILE}" ]; then
+  DEPLOY_ENV_FILE="/tmp/lexora-deploy.env.$$"
+  trap 'rm -f "${DEPLOY_ENV_FILE}"' EXIT
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ "$line" =~ ^[[:space:]]*# ]] || [[ "$line" =~ ^[[:space:]]*$ ]]; then
+      continue
+    fi
+    if [[ "$line" =~ ^([^=]*)=(.*)$ ]]; then
+      key=$(echo "${BASH_REMATCH[1]}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      val=$(echo "${BASH_REMATCH[2]}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      printf '%s=%s\n' "$key" "$val" >> "${DEPLOY_ENV_FILE}"
+    fi
+  done < "${ENV_FILE}"
+fi
+
 echo "==> Starting new container..."
 docker run -d \
   --name "${CONTAINER_NAME}" \
   -p "${APP_PORT}:8080" \
   --restart unless-stopped \
-  --env-file "${ENV_FILE}" \
+  --env-file "${DEPLOY_ENV_FILE}" \
   "${ECR_IMAGE}"
 
 echo "==> Waiting ${HEALTH_DELAY_SEC}s before health check..."
@@ -58,7 +75,7 @@ if docker image inspect "${ROLLBACK_IMAGE}" >/dev/null 2>&1; then
     --name "${CONTAINER_NAME}" \
     -p "${APP_PORT}:8080" \
     --restart unless-stopped \
-    --env-file "${ENV_FILE}" \
+    --env-file "${DEPLOY_ENV_FILE}" \
     "${ROLLBACK_IMAGE}"
   echo "==> Rolled back to ${ROLLBACK_IMAGE}"
 else
