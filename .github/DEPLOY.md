@@ -1,44 +1,56 @@
-# CI/CD and EC2 deployment
+# CI/CD and EC2 deployment (Docker + ECR)
 
 ## CI (`.github/workflows/ci.yml`)
 
-- **When**: Every push and pull request to `main` and `develop`.
-- **Steps**: Install deps → Lint → Test → Build → Smoke.
-- No secrets required.
+- **When**: Push to `develop`, pull requests to `main` / `develop`.
+- **MongoDB**: `supercharge/mongodb-github-action@1.12.1` (MongoDB 7.0).
+- **Secrets**: None. JWT and test DB/user are generated per run (no production secrets in GitHub).
+- **Steps**: Generate CI secrets → Lint → Test → Build → Smoke → Build Docker image (verify Dockerfile).
 
 ## CD (`.github/workflows/deploy.yml`)
 
-- **When**: Every push to `main` (after CI passes on your side).
-- **Steps**: Same as CI, then rsync `dist/`, `package.json`, `package-lock.json`, `ecosystem.config.js` (and `public/` if present) to EC2, run `npm ci --omit=dev` and `pm2 reload` on the server.
+- **When**: Push to `main`.
+- **Steps**: Same CI (MongoDB + generated secrets) → Build Docker image → Push to ECR → SSH to EC2 → run `scripts/deploy-ec2.sh` (pull image, run container, **3s health check**, **auto rollback** on failure).
 
 ### GitHub secrets (Settings → Secrets and variables → Actions)
 
 | Secret | Required | Description |
 |--------|----------|-------------|
-| `EC2_SSH_PRIVATE_KEY` | Yes | Full private key body for SSH (e.g. contents of `.pem`). |
+| `EC2_SSH_PRIVATE_KEY` | Yes | Full private key body for SSH (contents of `.pem`). |
 | `EC2_HOST` | Yes | EC2 hostname or IP. |
+| `AWS_ACCESS_KEY_ID` | Yes | For ECR push and (optional) EC2 ECR pull. |
+| `AWS_SECRET_ACCESS_KEY` | Yes | For ECR. |
+| `AWS_REGION` | Yes | e.g. `ap-south-1`. |
+| `ECR_REPOSITORY` | Yes | ECR repository name (e.g. `lexora`). Created automatically if missing. |
 | `EC2_USER` | No | SSH user (default: `ec2-user`). |
 | `EC2_PORT` | No | SSH port (default: `22`). |
-| `APP_DIR` | No | Directory on EC2 (default: `~/lexora`). |
+| `APP_DIR` | No | App dir on EC2; `.env` path is `$APP_DIR/.env` (default: `/home/ec2-user/lexora`). |
+| `APP_PORT` | No | Host port for the app (default: `8080`). |
 
-### EC2 setup
+### EC2 setup (Docker deploy)
 
 1. **One-time on the instance**
-   - Node.js 20 (e.g. `nvm install 20` or Amazon Linux 2/2023 Node repo). If you use **nvm**, the deploy workflow sources `~/.nvm/nvm.sh` over SSH so `npm`/`npx` are found; ensure nvm is installed in the deploy user’s home (e.g. `~/.nvm`).
-   - PM2: `npm install -g pm2` (after Node is in PATH).
-   - Create app directory: `mkdir -p ~/lexora` (or your `APP_DIR`).
-   - Create `logs` dir if you use file logging: `mkdir -p ~/lexora/logs`.
-   - Add a `.env` (or set env in `ecosystem.config.js`) with production config; do not commit secrets.
+   - **Docker**: Install Docker (e.g. Amazon Linux: `sudo yum install -y docker && sudo systemctl enable docker && sudo systemctl start docker`, then `sudo usermod -aG docker ec2-user`; re-login).
+   - **AWS CLI**: For ECR login from EC2 (`aws ecr get-login-password`). Install if not present: `curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && unzip -q awscliv2.zip && sudo ./aws/install`.
+   - **IAM**: Attach an IAM role (instance profile) to the EC2 instance with policy allowing:
+     - `ecr:GetAuthorizationToken`
+     - `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` for your ECR repo
+     so the deploy script can `docker pull` without storing AWS keys on the server.
+   - Create app directory and **`.env`**: `mkdir -p /home/ec2-user/lexora` and put production env (NODE_ENV, DATABASE_URI, JWT, SMTP, etc.) in `/home/ec2-user/lexora/.env`. Do not commit secrets; they live only on EC2.
 
-2. **SSH access for GitHub**
-   - Use the key pair you use to connect to EC2 (or a dedicated deploy key).
-   - Put the **private** key into the `EC2_SSH_PRIVATE_KEY` secret (full contents, including `-----BEGIN ... -----` and `-----END ... -----`).
-   - Ensure the EC2 security group allows inbound SSH (port 22, or your `EC2_PORT`) from the internet or from GitHub’s IPs if you restrict.
+2. **SSH**
+   - Put the private key in `EC2_SSH_PRIVATE_KEY`. Ensure the security group allows inbound SSH (port 22 or `EC2_PORT`) and inbound **APP_PORT** (e.g. 8080) for the health check and app traffic.
 
 3. **First deploy**
-   - Push to `main`; the workflow will create/update files in `APP_DIR` and run `pm2 reload` (or `pm2 start` if the app isn’t running yet).
+   - Push to `main`. The workflow builds the image, pushes to ECR, SSHs to EC2, runs `deploy-ec2.sh`: ECR login → backup current image → pull new image → run new container with `--env-file` → wait **3s** → health check `GET /api/v1/health` → on success exit 0; on failure **rollback** to previous image and exit 1.
+
+### Health check and rollback
+
+- **Delay**: 3 seconds after starting the container before calling the health endpoint.
+- **Endpoint**: `http://127.0.0.1:APP_PORT/api/v1/health`.
+- **Rollback**: If the health check fails, the script stops the new container and starts the previous image (tagged as `backup-<timestamp>`). The workflow step fails so the run is marked failed.
 
 ### Branches
 
-- CI runs on `main` and `develop`.
-- Deploy runs only on `main`. To deploy from another branch, add it under `on.push.branches` in `deploy.yml` or trigger the workflow manually.
+- **CI** runs on `develop` and on PRs to `main` / `develop` (no deploy).
+- **Deploy** runs only on push to `main`.

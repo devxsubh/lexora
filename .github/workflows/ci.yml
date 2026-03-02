@@ -1,8 +1,7 @@
+# CI: develop + PRs. No app secrets in GitHub; MongoDB + generated JWT/test credentials only.
+# App env (production) lives on EC2 only.
 name: CI
 
-# Runs on develop and on PRs (not on push to main — that triggers Deploy to EC2 only).
-# App env (DATABASE_URI, JWT, etc.) lives on EC2 only; GitHub secrets are for SSH + host.
-# CI uses in-runner MongoDB service + smoke.js fallbacks (no app secrets needed).
 on:
   push:
     branches: [develop]
@@ -12,25 +11,38 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    services:
-      mongodb:
-        image: mongo:6
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Start MongoDB
+        uses: supercharge/mongodb-github-action@1.12.1
+        with:
+          mongodb-version: '7.0'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
+      - name: Generate CI secrets
+        id: secrets
+        run: |
+          # Unique DB name per run (no cross-run pollution)
+          echo "db_name=lexora_ci_${{ github.run_id }}" >> $GITHUB_OUTPUT
+          # JWT key pair (RS256) - base64 for config
+          openssl genrsa -out /tmp/jwt_private.pem 2048
+          openssl rsa -in /tmp/jwt_private.pem -pubout -out /tmp/jwt_public.pem
+          echo "jwt_private_b64<<EOF" >> $GITHUB_OUTPUT
+          base64 -w0 < /tmp/jwt_private.pem >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "jwt_public_b64<<EOF" >> $GITHUB_OUTPUT
+          base64 -w0 < /tmp/jwt_public.pem >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          # Test user credentials for integration tests (random, no real email)
+          echo "test_email=test-$(openssl rand -hex 8)@example.com" >> $GITHUB_OUTPUT
+          echo "test_password=$(openssl rand -base64 16)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: npm ci
@@ -39,15 +51,26 @@ jobs:
         run: npm run lint
 
       - name: Test
+        env:
+          NODE_ENV: test
+          DATABASE_URI: mongodb://127.0.0.1:27017/${{ steps.secrets.outputs.db_name }}
+          JWT_ACCESS_TOKEN_SECRET_PRIVATE: ${{ steps.secrets.outputs.jwt_private_b64 }}
+          JWT_ACCESS_TOKEN_SECRET_PUBLIC: ${{ steps.secrets.outputs.jwt_public_b64 }}
+          TEST_USER_EMAIL: ${{ steps.secrets.outputs.test_email }}
+          TEST_USER_PASSWORD: ${{ steps.secrets.outputs.test_password }}
         run: npm run test
 
       - name: Build
         run: npm run build
 
       - name: Smoke
-        run: node scripts/smoke.js
         env:
           NODE_ENV: test
           PORT: 666
-          # DATABASE_URI and JWT come from smoke.js fallbacks (no GitHub secrets)
-          DATABASE_URI: mongodb://127.0.0.1:27017/lexora-smoke
+          DATABASE_URI: mongodb://127.0.0.1:27017/${{ steps.secrets.outputs.db_name }}
+          JWT_ACCESS_TOKEN_SECRET_PRIVATE: ${{ steps.secrets.outputs.jwt_private_b64 }}
+          JWT_ACCESS_TOKEN_SECRET_PUBLIC: ${{ steps.secrets.outputs.jwt_public_b64 }}
+        run: node scripts/smoke.js
+
+      - name: Build Docker image (verify Dockerfile)
+        run: docker build -t lexora:ci .
