@@ -1,14 +1,27 @@
 name: CI
 
+# Runs on develop and on PRs (not on push to main — that triggers Deploy to EC2 only).
+# App env (DATABASE_URI, JWT, etc.) lives on EC2 only; GitHub secrets are for SSH + host.
+# CI uses in-runner MongoDB service + smoke.js fallbacks (no app secrets needed).
 on:
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
     branches: [main, develop]
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,3 +46,8 @@ jobs:
 
       - name: Smoke
         run: node scripts/smoke.js
+        env:
+          NODE_ENV: test
+          PORT: 666
+          # DATABASE_URI and JWT come from smoke.js fallbacks (no GitHub secrets)
+          DATABASE_URI: mongodb://127.0.0.1:27017/lexora-smoke

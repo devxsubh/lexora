@@ -1,13 +1,28 @@
 /**
  * Smoke test: after build, start the server, GET /api/v1/health, exit 0 on success.
  * Usage: npm run build && node scripts/smoke.js
- * Requires: DATABASE_URI, JWT keys in env (e.g. .env).
+ * Requires: NODE_ENV (set in CI). Optional: .env or DATABASE_URI, JWT keys (fallbacks for CI).
  */
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 require('dotenv').config();
+
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+if (!process.env.DATABASE_URI) {
+	process.env.DATABASE_URI = 'mongodb://127.0.0.1:27017/lexora-smoke';
+}
+if (!process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE || !process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC) {
+	const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+		modulusLength: 2048,
+		privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+		publicKeyEncoding: { type: 'spki', format: 'pem' }
+	});
+	process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE = process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE || Buffer.from(privateKey, 'utf8').toString('base64');
+	process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC = process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC || Buffer.from(publicKey, 'utf8').toString('base64');
+}
 
 const PORT = Number(process.env.PORT) || 666;
 const DIST_INDEX = path.join(__dirname, '..', 'dist', 'index.js');

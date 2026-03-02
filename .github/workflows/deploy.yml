@@ -1,6 +1,6 @@
 # Deploy to AWS EC2 on push to main.
-# Required secrets: EC2_SSH_PRIVATE_KEY, EC2_HOST
-# Optional secrets: EC2_USER (default ec2-user), EC2_PORT (default 22), APP_DIR (default ~/lexora)
+# GitHub secrets: EC2_SSH_PRIVATE_KEY, EC2_HOST (optional: EC2_USER, EC2_PORT, APP_DIR).
+# App env (NODE_ENV, DATABASE_URI, JWT, etc.) is set only on EC2 (e.g. ~/lexora/.env); do not store in GitHub.
 
 name: Deploy to EC2
 
