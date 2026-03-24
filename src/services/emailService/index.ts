@@ -5,13 +5,23 @@ import config from '~/config/config';
 
 export const isSmtpConfigured = Boolean(config.SMTP_HOST && config.SMTP_PORT && config.SMTP_USERNAME && config.SMTP_PASSWORD);
 
+function resolveSmtpPassword(): string {
+	const rawPassword = config.SMTP_PASSWORD ?? '';
+	const host = (config.SMTP_HOST ?? '').toLowerCase();
+	// Gmail app passwords are shown in grouped chunks; nodemailer needs the raw token.
+	if (host.includes('gmail') || host.includes('googlemail')) {
+		return rawPassword.replace(/\s+/g, '');
+	}
+	return rawPassword;
+}
+
 export const transport = nodemailer.createTransport({
 	host: config.SMTP_HOST,
 	port: config.SMTP_PORT,
 	secure: Number(config.SMTP_PORT) === 465,
 	auth: {
 		user: config.SMTP_USERNAME,
-		pass: config.SMTP_PASSWORD
+		pass: resolveSmtpPassword()
 	}
 });
 
@@ -20,7 +30,9 @@ if (config.NODE_ENV !== 'test') {
 		transport
 			.verify()
 			.then(() => logger.info('Connected to email server'))
-			.catch(() => logger.warn('Unable to connect to email server'));
+			.catch((err: unknown) =>
+				logger.warn(`Unable to connect to email server: ${err instanceof Error ? err.message : String(err)}`)
+			);
 	} else {
 		logger.info('SMTP is not fully configured, email sending is disabled');
 	}
