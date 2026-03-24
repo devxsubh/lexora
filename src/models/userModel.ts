@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import paginate from './plugins/paginatePlugin';
 import toJSON from './plugins/toJSONPlugin';
-import { ConflictError, InternalError, NotFoundError, ValidationError } from '~/utils/domainErrors';
+import { ConflictError, NotFoundError, ValidationError } from '~/utils/domainErrors';
 import Role from './roleModel';
 import config from '~/config/config';
 
@@ -163,10 +163,7 @@ class UserClass {
 			}
 		}
 		const name = [profile.name?.givenName, profile.name?.familyName].filter(Boolean).join(' ') || profile.displayName || 'User';
-		const role = await Role.getRoleByName('User');
-		if (!role) {
-			throw new InternalError('Default role not found');
-		}
+		const role = await Role.ensureDefaultUserRole();
 		const placeholderPassword = crypto.randomBytes(32).toString('hex');
 		return this.create({
 			name,

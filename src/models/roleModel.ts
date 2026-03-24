@@ -20,6 +20,7 @@ interface IRoleModel extends mongoose.Model<IRole> {
 	): Promise<{ results: unknown[]; totalResults: number }>;
 	isNameAlreadyExists(name: string, excludeUserId?: Types.ObjectId | string): Promise<boolean>;
 	getRoleByName(name: string): Promise<mongoose.HydratedDocument<IRole> | null>;
+	ensureDefaultUserRole(): Promise<mongoose.HydratedDocument<IRole>>;
 	getRoleById(id: Types.ObjectId | string): Promise<mongoose.HydratedDocument<IRole> | null>;
 	createRole(body: Partial<IRole>): Promise<mongoose.HydratedDocument<IRole>>;
 	updateRoleById(roleId: Types.ObjectId | string, body: Partial<IRole>): Promise<mongoose.HydratedDocument<IRole>>;
@@ -62,6 +63,15 @@ class RoleClass {
 
 	static async getRoleByName(this: IRoleModel, name: string): Promise<mongoose.HydratedDocument<IRole> | null> {
 		return this.findOne({ name });
+	}
+
+	static async ensureDefaultUserRole(this: IRoleModel): Promise<mongoose.HydratedDocument<IRole>> {
+		const role = await this.findOneAndUpdate(
+			{ name: 'User' },
+			{ $setOnInsert: { name: 'User', permissions: [], description: '' } },
+			{ upsert: true, new: true }
+		);
+		return role;
 	}
 
 	static async getRoleById(this: IRoleModel, id: Types.ObjectId | string): Promise<mongoose.HydratedDocument<IRole> | null> {

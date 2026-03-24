@@ -6,7 +6,7 @@ import tokenService from './tokenService';
 import emailService from './emailService';
 import notificationService from './notificationService';
 import config from '~/config/config';
-import { ConflictError, InternalError, NotFoundError, UnauthorizedError, ValidationError } from '~/utils/domainErrors';
+import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '~/utils/domainErrors';
 
 export interface SignupBody {
 	name: string;
@@ -25,10 +25,7 @@ export interface SignupResult {
 }
 
 export async function signup(body: SignupBody): Promise<SignupResult> {
-	const role = await Role.getRoleByName('User');
-	if (!role) {
-		throw new InternalError('Default role not found');
-	}
+	const role = await Role.ensureDefaultUserRole();
 	const user = await User.createUser({ ...body, roles: [role.id] });
 	const tokens = await tokenService.generateAuthTokens(user);
 	await notificationService.createNotification(user._id, {
