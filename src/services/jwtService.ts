@@ -5,14 +5,24 @@ import APIError from '~/utils/apiError';
 
 const AUTH_ERROR_MESSAGE = 'Authentication failed';
 
-export const sign = async (userId: string, expires: moment.Moment, secret: Buffer, options: jwt.SignOptions): Promise<string> => {
+export const sign = async (
+	userId: string,
+	expires: moment.Moment,
+	secret: Buffer,
+	options: jwt.SignOptions & { keyid?: string }
+): Promise<string> => {
 	try {
 		const payload = {
 			sub: userId,
 			iat: moment().unix(),
 			exp: expires.unix()
 		};
-		return jwt.sign(payload, secret as jwt.Secret, options);
+		const { keyid, ...signOpts } = options;
+		const jwtOptions: jwt.SignOptions = { ...signOpts };
+		if (keyid) {
+			jwtOptions.keyid = keyid;
+		}
+		return jwt.sign(payload, secret as jwt.Secret, jwtOptions);
 	} catch {
 		throw new APIError(AUTH_ERROR_MESSAGE, httpStatus.UNAUTHORIZED);
 	}

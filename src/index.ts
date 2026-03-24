@@ -3,6 +3,12 @@ import config from '~/config/config';
 import app from './app';
 import initialData from '~/config/initialData';
 import logger from '~/config/logger';
+import { registerJobHandlers } from '~/config/jobHandlers';
+import {
+	attachConnectionTracking,
+	emergencyShutdown,
+	gracefulShutdown
+} from '~/utils/gracefulShutdown';
 
 mongoose.set('strictQuery', false);
 
@@ -39,7 +45,9 @@ const connect = async (): Promise<void> => {
 			await initialData();
 			logger.info('🚀 Initial MongoDB!');
 		}
+		registerJobHandlers();
 		server = app.listen(config.PORT, config.HOST, () => {
+			attachConnectionTracking(server!);
 			logger.info(`🚀 Host: http://${config.HOST}:${config.PORT}`);
 			logger.info('/$$');
 			logger.info('| $$');
@@ -57,44 +65,31 @@ const connect = async (): Promise<void> => {
 
 connect();
 
-const exitHandler = (): void => {
-	if (server) {
-		server.close(() => {
-			logger.warn('Server closed');
-			mongoose.connection.close(false).then(
-				() => {
-					logger.warn('MongoDB connection closed');
-					process.exit(1);
-				},
-				() => process.exit(1)
-			);
-		});
-	} else {
-		mongoose.connection.close(false).then(
-			() => process.exit(1),
-			() => process.exit(1)
-		);
-	}
-};
-
 const unexpectedErrorHandler = (err: Error): void => {
 	logger.error(err);
-	exitHandler();
+	void emergencyShutdown(server, 1);
 };
 
 process.on('uncaughtException', unexpectedErrorHandler);
 process.on('unhandledRejection', unexpectedErrorHandler);
 
-process.on('SIGTERM', () => {
-	logger.info('SIGTERM received');
-	if (server) {
-		server.close(() => {
-			mongoose.connection.close(false).then(
-				() => logger.info('MongoDB connection closed'),
-				() => {}
-			);
-		});
+let shutdownPromise: Promise<void> | null = null;
+
+const onShutdownSignal = (signal: 'SIGTERM' | 'SIGINT'): void => {
+	if (shutdownPromise) {
+		logger.error(`Second ${signal} — forcing exit`);
+		process.exit(1);
+		return;
 	}
+	shutdownPromise = gracefulShutdown(server, signal, 0);
+};
+
+process.on('SIGTERM', () => {
+	onShutdownSignal('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+	onShutdownSignal('SIGINT');
 });
 
 export default app;

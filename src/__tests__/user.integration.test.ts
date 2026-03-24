@@ -6,6 +6,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 let app: Express;
 let mongoose: typeof Mongoose;
 let mongod: MongoMemoryServer;
+let adminToken: string;
+let roleId: string;
 
 const hasRequiredEnv = process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE && process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC;
 
@@ -14,10 +16,22 @@ beforeAll(async () => {
 	mongod = await MongoMemoryServer.create();
 	process.env.DATABASE_URI = mongod.getUri();
 	mongoose = (await import('mongoose')).default;
+	if (mongoose.connection.readyState !== 0) {
+		await mongoose.disconnect();
+	}
 	await mongoose.connect(process.env.DATABASE_URI);
 	const initialData = (await import('~/config/initialData')).default;
 	await initialData();
 	app = (await import('~/app')).default;
+	const signinRes = await request(app)
+		.post('/api/v1/auth/signin')
+		.send({ email: 'admjnwapviip@gmail.com', password: 'superadmin' })
+		.expect(200);
+	adminToken = signinRes.body.data.tokens.accessToken.token;
+	const rolesRes = await request(app).get('/api/v1/roles').set('Authorization', `Bearer ${adminToken}`).expect(200);
+	if (rolesRes.body.data?.length) {
+		roleId = rolesRes.body.data[0].id ?? rolesRes.body.data[0]._id;
+	}
 }, 30000);
 
 afterAll(async () => {
@@ -28,22 +42,7 @@ afterAll(async () => {
 
 const describeUser = hasRequiredEnv ? describe : describe.skip;
 describeUser('User CRUD API', () => {
-	let adminToken: string;
-	let roleId: string;
 	let userId: string;
-
-	beforeAll(async () => {
-		// Super Administrator has all permissions (user:read, etc.)
-		const signinRes = await request(app)
-			.post('/api/v1/auth/signin')
-			.send({ email: 'admjnwapviip@gmail.com', password: 'superadmin' });
-		if (signinRes.status !== 200) return;
-		adminToken = signinRes.body.data.tokens.accessToken.token;
-		const rolesRes = await request(app).get('/api/v1/roles').set('Authorization', `Bearer ${adminToken}`);
-		if (rolesRes.status === 200 && rolesRes.body.data?.length) {
-			roleId = rolesRes.body.data[0].id ?? rolesRes.body.data[0]._id;
-		}
-	});
 
 	it('GET /api/v1/users returns list with admin token', async () => {
 		const res = await request(app).get('/api/v1/users').set('Authorization', `Bearer ${adminToken}`).expect(200);

@@ -80,13 +80,17 @@ export async function signout(refreshToken: string): Promise<void> {
 }
 
 export async function refreshTokens(refreshToken: string): Promise<{ tokens: AuthTokens }> {
-	const refreshTokenDoc = await tokenService.verifyToken(refreshToken, config.TOKEN_TYPES.REFRESH);
-	const user = await User.getUserById(refreshTokenDoc.user);
+	const rotation = await Token.consumeRefreshTokenForRotation(refreshToken);
+	if (rotation.outcome === 'reuse' || rotation.outcome === 'invalid') {
+		throw new UnauthorizedError('Invalid refresh token');
+	}
+	const user = await User.getUserById(rotation.userId);
 	if (!user) {
 		throw new UnauthorizedError('User not found');
 	}
-	await refreshTokenDoc.deleteOne();
-	const tokens = await tokenService.generateAuthTokens(user);
+	const tokens = await tokenService.generateAuthTokens(user, {
+		refreshFamilyId: rotation.familyId
+	});
 	return { tokens };
 }
 

@@ -4,6 +4,7 @@
 # misc
 .env
 *.pem
+lexora.pem
 
 # build
 /dist
@@ -16,3 +17,5 @@
 
 # storage
 /storage/*.key*
+/storage/*.key
+/storage/*.key.pub

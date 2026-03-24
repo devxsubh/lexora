@@ -14,6 +14,9 @@ beforeAll(async () => {
 	mongod = await MongoMemoryServer.create();
 	process.env.DATABASE_URI = mongod.getUri();
 	mongoose = (await import('mongoose')).default;
+	if (mongoose.connection.readyState !== 0) {
+		await mongoose.disconnect();
+	}
 	await mongoose.connect(process.env.DATABASE_URI);
 	const initialData = (await import('~/config/initialData')).default;
 	await initialData();
@@ -94,5 +97,16 @@ describeAuth('Auth API', () => {
 		await request(app).post('/api/v1/auth/signout').send({ refreshToken }).expect(200);
 		// Using same refresh token again should fail (401)
 		await request(app).post('/api/v1/auth/refresh-tokens').send({ refreshToken }).expect(401);
+	});
+
+	it('POST /api/v1/auth/refresh-tokens rejects reuse of rotated refresh token and revokes the family', async () => {
+		const signinRes = await request(app)
+			.post('/api/v1/auth/signin')
+			.send({ email: signupPayload.email, password: signupPayload.password });
+		const refreshToken1 = signinRes.body.data.tokens.refreshToken.token;
+		const refreshRes = await request(app).post('/api/v1/auth/refresh-tokens').send({ refreshToken: refreshToken1 }).expect(200);
+		const refreshToken2 = refreshRes.body.data.tokens.refreshToken.token;
+		await request(app).post('/api/v1/auth/refresh-tokens').send({ refreshToken: refreshToken1 }).expect(401);
+		await request(app).post('/api/v1/auth/refresh-tokens').send({ refreshToken: refreshToken2 }).expect(401);
 	});
 });

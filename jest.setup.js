@@ -1,9 +1,12 @@
 const path = require('path');
 const crypto = require('crypto');
 
-process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 require('dotenv').config({ path: path.resolve(process.cwd(), '.env.test') });
 require('dotenv').config();
+// After dotenv: keep Jest on `test` so initialData seeds dev users (super admin) even if `.env` sets NODE_ENV=production
+process.env.NODE_ENV = 'test';
+// Integration tests sign in with hardcoded dev passwords from initialData; clear this so seeds use `superadmin` / `admin` / etc.
+process.env.SEED_DEFAULT_PASSWORD = '';
 
 // Suppress Mongoose 7 deprecation warning for strictQuery default change
 require('mongoose').set('strictQuery', false);

@@ -53,7 +53,20 @@ export function isCloudinaryConfigured(): boolean {
 	return isConfigured;
 }
 
+export async function pingCloudinary(): Promise<void> {
+	if (!isConfigured) {
+		return;
+	}
+	await new Promise<void>((resolve, reject) => {
+		cloudinary.api.ping((err: Error | undefined) => {
+			if (err) reject(err);
+			else resolve();
+		});
+	});
+}
+
 export default {
 	uploadBuffer,
-	isCloudinaryConfigured
+	isCloudinaryConfigured,
+	pingCloudinary
 };

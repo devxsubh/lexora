@@ -1,7 +1,9 @@
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import passport from 'passport';
+import jwt from 'jsonwebtoken';
 import config from './config';
+import { resolveAccessTokenPublicKey } from '~/config/jwtPublicKeys';
 import User from '~/models/userModel';
 
 interface JwtPayload {
@@ -12,7 +14,19 @@ passport.use(
 	new JwtStrategy(
 		{
 			jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-			secretOrKey: config.JWT_ACCESS_TOKEN_SECRET_PUBLIC,
+			secretOrKeyProvider: (_req, rawJwtToken, done) => {
+				try {
+					const decoded = jwt.decode(rawJwtToken, { complete: true });
+					const kid =
+						decoded && typeof decoded === 'object' && decoded.header && typeof decoded.header === 'object'
+							? (decoded.header as { kid?: string }).kid
+							: undefined;
+					const publicKey = resolveAccessTokenPublicKey(kid);
+					done(null, publicKey);
+				} catch (err) {
+					done(err as Error);
+				}
+			},
 			algorithms: ['RS256']
 		},
 		async (jwtPayload: JwtPayload, done: (err: Error | null, user?: unknown) => void) => {

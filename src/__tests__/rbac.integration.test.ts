@@ -14,6 +14,9 @@ beforeAll(async () => {
 	mongod = await MongoMemoryServer.create();
 	process.env.DATABASE_URI = mongod.getUri();
 	mongoose = (await import('mongoose')).default;
+	if (mongoose.connection.readyState !== 0) {
+		await mongoose.disconnect();
+	}
 	await mongoose.connect(process.env.DATABASE_URI);
 	const initialData = (await import('~/config/initialData')).default;
 	await initialData();

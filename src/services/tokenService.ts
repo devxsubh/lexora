@@ -32,7 +32,8 @@ export const verifyToken = async (
 };
 
 export const generateAuthTokens = async (
-	user: UserWithId
+	user: UserWithId,
+	opts?: { refreshFamilyId?: string }
 ): Promise<{
 	accessToken: { token: string; expires: string };
 	refreshToken: { token: string; expires: string };
@@ -42,12 +43,16 @@ export const generateAuthTokens = async (
 		user.id ?? user._id.toString(),
 		accessTokenExpires,
 		config.JWT_ACCESS_TOKEN_SECRET_PRIVATE,
-		{ algorithm: 'RS256' }
+		{
+			algorithm: 'RS256',
+			...(config.JWT_ACCESS_TOKEN_KEY_ID ? { keyid: config.JWT_ACCESS_TOKEN_KEY_ID } : {})
+		}
 	);
 
 	const refreshTokenExpires = moment().add(config.REFRESH_TOKEN_EXPIRATION_DAYS, 'days');
 	const refreshToken = await generateRandomToken();
-	await Token.saveToken(refreshToken, user._id, refreshTokenExpires.toDate(), config.TOKEN_TYPES.REFRESH);
+	const familyId = opts?.refreshFamilyId ?? crypto.randomUUID();
+	await Token.saveToken(refreshToken, user._id, refreshTokenExpires.toDate(), config.TOKEN_TYPES.REFRESH, { familyId });
 
 	return {
 		accessToken: {

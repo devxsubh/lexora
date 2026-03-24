@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import httpStatus from 'http-status';
 import Joi from 'joi';
 import config from '~/config/config';
+import { Sentry } from '~/config/sentryInit';
 import logger from '~/config/logger';
 import APIError, { ApiErrorItem } from '~/utils/apiError';
 import { DomainError } from '~/utils/domainErrors';
@@ -58,6 +59,16 @@ export const handler = (
 		errors = [{ message: (httpStatus[httpStatus.INTERNAL_SERVER_ERROR] as string) ?? 'Internal Server Error' }];
 	}
 	logger.error((err as Error).stack ?? '');
+
+	if (config.SENTRY_DSN && config.NODE_ENV !== 'test' && status >= 500) {
+		Sentry.withScope((scope) => {
+			if (req.id) {
+				scope.setTag('requestId', req.id);
+			}
+			Sentry.captureException(err);
+		});
+	}
+
 	const payload: Record<string, unknown> = {
 		status,
 		errors,
