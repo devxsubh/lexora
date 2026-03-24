@@ -1,8 +1,14 @@
 import fs from 'fs';
+import path from 'path';
 import winston from 'winston';
 import config from './config';
 
-fs.mkdirSync('logs', { recursive: true });
+/** Writable in containers where the app user cannot create dirs under cwd (e.g. USER node on /app). */
+const logDir =
+	(process.env.LOG_DIR && process.env.LOG_DIR.trim()) ||
+	(process.env.NODE_ENV === 'production' ? '/tmp/logs' : 'logs');
+
+fs.mkdirSync(logDir, { recursive: true });
 
 const logTimezone = config.LOG_TZ || undefined;
 const tzFormatter =
@@ -50,12 +56,12 @@ const consoleTransport = new winston.transports.Console({
 const fileTransports: winston.transport[] = [
 	new winston.transports.File({
 		level: 'error',
-		filename: 'logs/error.log',
+		filename: path.join(logDir, 'error.log'),
 		maxsize: 10000000,
 		maxFiles: 10
 	}),
 	new winston.transports.File({
-		filename: 'logs/combined.log',
+		filename: path.join(logDir, 'combined.log'),
 		maxsize: 10000000,
 		maxFiles: 10
 	})
