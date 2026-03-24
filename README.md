@@ -87,11 +87,8 @@ REFRESH_TOKEN_EXPIRATION_DAYS = # default 1 day
 VERIFY_EMAIL_TOKEN_EXPIRATION_MINUTES = # default 60 minutes
 RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES = # default 30 minutes
 
-# SMTP configuration
-SMTP_HOST = smtp.googlemail.com
-SMTP_PORT = 465
-SMTP_USERNAME =
-SMTP_PASSWORD =
+# Email provider (Resend)
+RESEND_API_KEY =
 EMAIL_FROM =
 
 # URL frontend

@@ -26,10 +26,7 @@ const envValidate = Joi.object()
 		VERIFY_EMAIL_TOKEN_EXPIRATION_MINUTES: Joi.number().allow('').empty('').default(60),
 		RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES: Joi.number().allow('').empty('').default(30),
 
-		SMTP_HOST: Joi.string().allow('').empty(''),
-		SMTP_PORT: Joi.number().allow('').empty(''),
-		SMTP_USERNAME: Joi.string().allow('').empty(''),
-		SMTP_PASSWORD: Joi.string().allow('').empty(''),
+		RESEND_API_KEY: Joi.string().allow('').empty(''),
 		EMAIL_FROM: Joi.string().allow('').empty(''),
 
 		FRONTEND_URL: Joi.string().allow('').empty('').default('http://localhost:3000'),
@@ -117,10 +114,7 @@ export interface AppConfig {
 	REFRESH_TOKEN_EXPIRATION_DAYS: number;
 	VERIFY_EMAIL_TOKEN_EXPIRATION_MINUTES: number;
 	RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES: number;
-	SMTP_HOST: string;
-	SMTP_PORT: number;
-	SMTP_USERNAME: string;
-	SMTP_PASSWORD: string;
+	RESEND_API_KEY: string;
 	EMAIL_FROM: string;
 	FRONTEND_URL: string;
 	IMAGE_URL: string;
@@ -175,10 +169,7 @@ const config: AppConfig = {
 	VERIFY_EMAIL_TOKEN_EXPIRATION_MINUTES: env.VERIFY_EMAIL_TOKEN_EXPIRATION_MINUTES,
 	RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES: env.RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES,
 
-	SMTP_HOST: env.SMTP_HOST,
-	SMTP_PORT: env.SMTP_PORT,
-	SMTP_USERNAME: env.SMTP_USERNAME,
-	SMTP_PASSWORD: env.SMTP_PASSWORD,
+	RESEND_API_KEY: env.RESEND_API_KEY,
 	EMAIL_FROM: env.EMAIL_FROM,
 
 	FRONTEND_URL: env.FRONTEND_URL,

@@ -18,7 +18,7 @@ Lexora is a Node.js + Express + TypeScript backend for contract lifecycle workfl
 - Database: MongoDB with Mongoose
 - Auth: JWT (RS256) and Google OAuth (Passport)
 - AI: Google Gemini
-- Email: Nodemailer (SMTP)
+- Email: Resend
 - File/Media: Multer, Sharp, optional Cloudinary
 - Docs: Swagger UI (`/api-docs`) with a full OpenAPI 3 spec in `src/docs/`
 
@@ -90,7 +90,7 @@ Important deployment keys:
 - `DATABASE_URI`
 - JWT keys (`JWT_ACCESS_TOKEN_SECRET_PRIVATE`, `JWT_ACCESS_TOKEN_SECRET_PUBLIC`, optional `JWT_ACCESS_TOKEN_KEY_ID`, optional `JWT_ACCESS_TOKEN_PUBLIC_KEYS_JSON` for multi-`kid` rotation)
 - `CORS_ORIGIN`
-- SMTP keys (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM`)
+- Email keys (`RESEND_API_KEY`, `EMAIL_FROM`)
 - Optional: `RENDER_EXTERNAL_URL` (used as an external server URL option in Swagger docs)
 - Optional: `API_V1_DEPRECATION_LINK`, `API_V1_SUNSET` — add `Deprecation` / `Link` / `Sunset` on all `/api/v1` responses when steering clients to v2
 - Optional: `METRICS_ENABLED=true` — Prometheus metrics at `GET /metrics` (latency histogram + request counter by route template and status)
@@ -108,7 +108,7 @@ Render blueprint is defined in `render.yaml`.
 - Build: `npm ci && npm run build`
 - Start: `npm run render:start`
 - Health (liveness): `/api/v1/health`
-- Readiness (Mongo + SMTP + Cloudinary when configured): `/api/v1/health/ready`
+- Readiness (Mongo + Email + Cloudinary when configured): `/api/v1/health/ready`
 - Memory option set via `NODE_OPTIONS=--max-old-space-size=512`
 
 ### Uptime Monitoring

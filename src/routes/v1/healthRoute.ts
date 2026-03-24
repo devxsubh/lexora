@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import config from '~/config/config';
 import { withGeminiRetry } from '~/utils/geminiRetry';
-import { isSmtpConfigured, verifySmtpConnection } from '~/services/emailService';
+import { isEmailConfigured, verifyEmailConnection } from '~/services/emailService';
 import { isCloudinaryConfigured, pingCloudinary } from '~/services/cloudinaryService';
 import { getShutdownSnapshot, isShuttingDown } from '~/utils/gracefulShutdown';
 import queue from '~/services/queueService';
@@ -49,17 +49,17 @@ router.get('/ready', async (_req: Request, res: Response) => {
 		};
 	}
 
-	if (!isSmtpConfigured) {
-		checks.smtp = { status: 'not_configured' };
+	if (!isEmailConfigured) {
+		checks.email = { status: 'not_configured' };
 	} else {
-		const smtpStart = Date.now();
+		const emailStart = Date.now();
 		try {
-			await verifySmtpConnection();
-			checks.smtp = { status: 'healthy', latencyMs: Date.now() - smtpStart };
+			await verifyEmailConnection();
+			checks.email = { status: 'healthy', latencyMs: Date.now() - emailStart };
 		} catch (err) {
-			checks.smtp = {
+			checks.email = {
 				status: 'unhealthy',
-				latencyMs: Date.now() - smtpStart,
+				latencyMs: Date.now() - emailStart,
 				error: err instanceof Error ? err.message : 'Unknown error'
 			};
 		}
@@ -82,9 +82,9 @@ router.get('/ready', async (_req: Request, res: Response) => {
 	}
 
 	const mongoOk = checks.mongodb.status === 'healthy';
-	const smtpOk = checks.smtp.status === 'healthy' || checks.smtp.status === 'not_configured';
+	const emailOk = checks.email.status === 'healthy' || checks.email.status === 'not_configured';
 	const cloudinaryOk = checks.cloudinary.status === 'healthy' || checks.cloudinary.status === 'not_configured';
-	const ready = mongoOk && smtpOk && cloudinaryOk;
+	const ready = mongoOk && emailOk && cloudinaryOk;
 
 	return res.status(ready ? 200 : 503).json({
 		success: ready,
