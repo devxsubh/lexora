@@ -19,12 +19,16 @@ export const sendEmail = async (to: string, subject: string, html: string): Prom
 		logger.warn(`Email skipped because Resend is not configured. Subject: ${subject}`);
 		return;
 	}
-	await resend.emails.send({
+	const result = await resend.emails.send({
 		from: `${config.APP_NAME} <${config.EMAIL_FROM}>`,
 		to: [to],
 		subject,
 		html
 	});
+	if (result.error) {
+		logger.warn(`Resend send failed (${subject}): ${result.error.message}`);
+		throw new Error(result.error.message);
+	}
 };
 
 export const sendResetPasswordEmail = async (to: string, token: string): Promise<void> => {

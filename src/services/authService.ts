@@ -6,6 +6,7 @@ import tokenService from './tokenService';
 import emailService from './emailService';
 import notificationService from './notificationService';
 import config from '~/config/config';
+import logger from '~/config/logger';
 import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '~/utils/domainErrors';
 
 export interface SignupBody {
@@ -33,6 +34,17 @@ export async function signup(body: SignupBody): Promise<SignupResult> {
 		title: 'Welcome',
 		message: `Welcome, ${body.name}! Your account has been created.`
 	});
+	if (emailService.isEmailConfigured && !user.confirmed) {
+		try {
+			const verifyEmailToken = await tokenService.generateVerifyEmailToken({
+				id: user.id ?? user._id.toString(),
+				_id: user._id as Types.ObjectId
+			});
+			await emailService.sendVerificationEmail(user.email, verifyEmailToken);
+		} catch (err) {
+			logger.error(`Verification email was not sent after signup: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
 	return { user, tokens };
 }
 
