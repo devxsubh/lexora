@@ -58,7 +58,15 @@ export const handler = (
 		status = httpStatus.INTERNAL_SERVER_ERROR;
 		errors = [{ message: (httpStatus[httpStatus.INTERNAL_SERVER_ERROR] as string) ?? 'Internal Server Error' }];
 	}
-	logger.error((err as Error).stack ?? '');
+	if (status >= httpStatus.INTERNAL_SERVER_ERROR) {
+		logger.error((err as Error).stack ?? '');
+	} else if (status === httpStatus.NOT_FOUND && err instanceof APIError && err.isOperational) {
+		logger.debug(`${req.method} ${req.originalUrl} Not Found`);
+	} else if (err instanceof APIError && err.isOperational) {
+		logger.warn(errors.map((e) => e.message).join('; ') || (err as Error).message);
+	} else {
+		logger.error((err as Error).stack ?? '');
+	}
 
 	if (config.SENTRY_DSN && config.NODE_ENV !== 'test' && status >= 500) {
 		Sentry.withScope((scope) => {

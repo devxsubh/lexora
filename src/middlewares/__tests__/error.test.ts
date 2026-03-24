@@ -12,7 +12,7 @@ jest.mock('~/config/config', () => ({
 
 jest.mock('~/config/logger', () => ({
 	__esModule: true,
-	default: { error: jest.fn() }
+	default: { error: jest.fn(), warn: jest.fn(), debug: jest.fn() }
 }));
 
 describe('error middleware', () => {
