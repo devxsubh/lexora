@@ -1,5 +1,4 @@
 # CI: develop + PRs. No app secrets in GitHub; MongoDB + generated JWT/test credentials only.
-# App env (production) lives on EC2 only.
 name: CI
 
 on:
@@ -72,7 +71,7 @@ jobs:
           DATABASE_URI: mongodb://127.0.0.1:27017/${{ steps.secrets.outputs.db_name }}
           JWT_ACCESS_TOKEN_SECRET_PRIVATE: ${{ steps.secrets.outputs.jwt_private_b64 }}
           JWT_ACCESS_TOKEN_SECRET_PUBLIC: ${{ steps.secrets.outputs.jwt_public_b64 }}
-        run: node scripts/smoke.js
+        run: node scripts/smoke.mjs
 
       - name: Build Docker image (verify Dockerfile)
         run: docker build -t lexora:ci .

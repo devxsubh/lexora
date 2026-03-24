@@ -14,7 +14,7 @@
 		"lint": "eslint src --ext .ts",
 		"test": "jest",
 		"test:watch": "jest --watch",
-		"smoke": "npm run build && node scripts/smoke.js",
+		"smoke": "npm run build && node scripts/smoke.mjs",
 		"ci": "npm run lint && npm run test && npm run smoke"
 	},
 	"_moduleAliases": {

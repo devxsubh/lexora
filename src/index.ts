@@ -4,11 +4,7 @@ import app from './app';
 import initialData from '~/config/initialData';
 import logger from '~/config/logger';
 import { registerJobHandlers } from '~/config/jobHandlers';
-import {
-	attachConnectionTracking,
-	emergencyShutdown,
-	gracefulShutdown
-} from '~/utils/gracefulShutdown';
+import { attachConnectionTracking, emergencyShutdown, gracefulShutdown } from '~/utils/gracefulShutdown';
 
 mongoose.set('strictQuery', false);
 

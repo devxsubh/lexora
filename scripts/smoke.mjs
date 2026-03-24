@@ -1,14 +1,18 @@
 /**
  * Smoke test: after build, start the server, GET /api/v1/health, exit 0 on success.
- * Usage: npm run build && node scripts/smoke.js
+ * Usage: npm run build && node scripts/smoke.mjs
  * Requires: NODE_ENV (set in CI). Optional: .env or DATABASE_URI, JWT keys (fallbacks for CI).
  */
-const path = require('path');
-const http = require('http');
-const crypto = require('crypto');
-const { spawn } = require('child_process');
+import path from 'path';
+import http from 'http';
+import crypto from 'crypto';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import { config } from 'dotenv';
 
-require('dotenv').config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+config();
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 if (!process.env.DATABASE_URI) {
@@ -20,8 +24,10 @@ if (!process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE || !process.env.JWT_ACCESS_TOKE
 		privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
 		publicKeyEncoding: { type: 'spki', format: 'pem' }
 	});
-	process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE = process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE || Buffer.from(privateKey, 'utf8').toString('base64');
-	process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC = process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC || Buffer.from(publicKey, 'utf8').toString('base64');
+	process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE =
+		process.env.JWT_ACCESS_TOKEN_SECRET_PRIVATE || Buffer.from(privateKey, 'utf8').toString('base64');
+	process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC =
+		process.env.JWT_ACCESS_TOKEN_SECRET_PUBLIC || Buffer.from(publicKey, 'utf8').toString('base64');
 }
 
 const PORT = Number(process.env.PORT) || 8080;

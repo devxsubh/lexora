@@ -89,9 +89,7 @@ async function waitForBackgroundJobsDeadline(ms: number): Promise<void> {
 		await new Promise<void>((r) => setTimeout(r, 50));
 	}
 	if (activeBackgroundJobs > 0) {
-		logger.warn(
-			`Proceeding with shutdown while ${activeBackgroundJobs} background job(s) still active (drain budget ${ms}ms)`
-		);
+		logger.warn(`Proceeding with shutdown while ${activeBackgroundJobs} background job(s) still active (drain budget ${ms}ms)`);
 	}
 }
 
@@ -113,11 +111,7 @@ async function closeMongo(): Promise<void> {
 /**
  * Ordered shutdown: stop accepting HTTP, drain or force-close connections, optional background job drain, hooks, Mongo.
  */
-export async function gracefulShutdown(
-	server: Server | undefined,
-	signal: string,
-	exitCode: number
-): Promise<void> {
+export async function gracefulShutdown(server: Server | undefined, signal: string, exitCode: number): Promise<void> {
 	if (shuttingDown) {
 		logger.warn(`${signal} ignored — shutdown already in progress`);
 		return;

@@ -1,13 +1,16 @@
 import Joi from 'joi';
 import { mongoId } from './customValidation';
 
-const blockSchema = Joi.object().keys({
-	id: Joi.string().allow(''),
-	type: Joi.string().required(),
-	props: Joi.object().unknown(true),
-	content: Joi.array().items(Joi.object().unknown(true)),
-	children: Joi.array().items(Joi.link('#block'))
-}).id('block');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const blockSchema = Joi.object()
+	.keys({
+		id: Joi.string().allow(''),
+		type: Joi.string().required(),
+		props: Joi.object().unknown(true),
+		content: Joi.array().items(Joi.object().unknown(true)),
+		children: Joi.array().items(Joi.link('#block'))
+	})
+	.id('block');
 
 const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt', 'title', 'status', 'contractType', 'aiRiskScore'];
 

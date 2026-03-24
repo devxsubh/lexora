@@ -3,12 +3,7 @@ import signatureService from '~/services/signatureService';
 
 export const requestSignatures = async (req: Request, res: Response): Promise<Response> => {
 	const userId = req.user!.id;
-	const result = await signatureService.requestSignatures(
-		req.params.contractId,
-		userId,
-		req.body.signers,
-		req.body.message
-	);
+	const result = await signatureService.requestSignatures(req.params.contractId, userId, req.body.signers, req.body.message);
 	return res.status(201).json({
 		success: true,
 		data: {

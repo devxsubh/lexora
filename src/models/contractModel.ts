@@ -1,7 +1,6 @@
 import mongoose, { Types } from 'mongoose';
 import paginate from './plugins/paginatePlugin';
 import toJSON from './plugins/toJSONPlugin';
-import { NotFoundError } from '~/utils/domainErrors';
 
 export interface IBlock {
 	id?: string;
