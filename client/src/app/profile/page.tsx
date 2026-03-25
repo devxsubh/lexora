@@ -32,7 +32,7 @@ import { useAuthStore } from '@/store/authStore'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { UserProfileDropdown } from '@/components/user/UserProfileDropdown'
 import { Button } from '@/components/ui/button-shadcn'
-import { LexiDraftLogo } from '@/components/ui/LexiDraftLogo'
+import { LexoraLogo } from '@/components/ui/LexoraLogo'
 
 const recentChats = [
   { id: 1, title: 'Employment Contract Generator', icon: FileText },
@@ -57,32 +57,27 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState('contracts')
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
+    name: '',
   })
   const [updateError, setUpdateError] = useState<string | null>(null)
   const [updateSuccess, setUpdateSuccess] = useState(false)
 
-  // Initialize auth
   useEffect(() => {
     if (!isInitialized) {
       initialize()
     }
   }, [isInitialized, initialize])
 
-  // Fetch profile on mount
   useEffect(() => {
     if (isInitialized) {
       fetchProfile()
     }
   }, [isInitialized, fetchProfile])
 
-  // Set form values when user data loads
   useEffect(() => {
     if (user) {
       setEditForm({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
+        name: user.name || '',
       })
     }
   }, [user])
@@ -96,8 +91,7 @@ export default function ProfilePage() {
   const handleCancel = () => {
     setIsEditing(false)
     setEditForm({
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
+      name: user?.name || '',
     })
     setUpdateError(null)
   }
@@ -115,20 +109,18 @@ export default function ProfilePage() {
   }
 
   const getInitials = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
-    }
-    if (user?.userName) {
-      return user.userName.slice(0, 2).toUpperCase()
+    if (user?.name) {
+      const parts = user.name.trim().split(/\s+/)
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      }
+      return user.name.slice(0, 2).toUpperCase()
     }
     return 'U'
   }
 
   const getDisplayName = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName} ${user.lastName}`
-    }
-    return user?.userName || 'User'
+    return user?.name || 'User'
   }
 
   const formatDate = (dateString?: string) => {
@@ -154,7 +146,7 @@ export default function ProfilePage() {
         <aside className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
           {/* Logo Section */}
           <div className="p-4 border-b border-gray-200">
-            <LexiDraftLogo href="/dashboard" size="md" />
+            <LexoraLogo href="/dashboard" size="md" />
           </div>
 
           {/* New Contract Button */}
@@ -314,12 +306,12 @@ export default function ProfilePage() {
                             <h1 className="text-2xl font-bold text-gray-900">
                               {getDisplayName()}
                             </h1>
-                            {user?.role?.name && (
+                            {user?.roles?.[0]?.name && (
                               <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
-                                {user.role.name.toUpperCase()}
+                                {user.roles[0].name.toUpperCase()}
                               </span>
                             )}
-                            {user?.isEmailVerified && (
+                            {user?.confirmed && (
                               <BadgeCheck className="w-5 h-5 text-blue-500" />
                             )}
                           </div>
@@ -327,7 +319,7 @@ export default function ProfilePage() {
                             Legal Contract Specialist
                           </p>
                           <p className="text-gray-400 text-sm mt-0.5">
-                            @{user?.userName} • Member since {formatDate(user?.createdAt)}
+                            {user?.email} • Member since {formatDate(user?.createdAt)}
                           </p>
                         </div>
 
@@ -457,44 +449,22 @@ export default function ProfilePage() {
                           <div className="space-y-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-500 mb-1">
-                                First Name
+                                Full Name
                               </label>
                               {isEditing ? (
                                 <input
                                   type="text"
-                                  value={editForm.firstName}
-                                  onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                                  value={editForm.name}
+                                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                  placeholder="Enter first name"
+                                  placeholder="Enter your name"
                                 />
                               ) : (
-                                <p className="text-gray-900">{user?.firstName || 'Not set'}</p>
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4 text-gray-400" />
+                                  <p className="text-gray-900">{user?.name || 'Not set'}</p>
+                                </div>
                               )}
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-500 mb-1">
-                                Last Name
-                              </label>
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={editForm.lastName}
-                                  onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                  placeholder="Enter last name"
-                                />
-                              ) : (
-                                <p className="text-gray-900">{user?.lastName || 'Not set'}</p>
-                              )}
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-500 mb-1">
-                                Username
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-gray-400" />
-                                <p className="text-gray-900">@{user?.userName}</p>
-                              </div>
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-500 mb-1">
@@ -503,7 +473,7 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <Mail className="w-4 h-4 text-gray-400" />
                                 <p className="text-gray-900">{user?.email}</p>
-                                {user?.isEmailVerified ? (
+                                {user?.confirmed ? (
                                   <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
                                     Verified
                                   </span>
@@ -530,7 +500,7 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <Shield className="w-4 h-4 text-gray-400" />
                                 <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-full font-medium">
-                                  {user?.role?.name || 'User'}
+                                  {user?.roles?.[0]?.name || 'User'}
                                 </span>
                               </div>
                             </div>
@@ -541,7 +511,7 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <CreditCard className="w-4 h-4 text-gray-400" />
                                 <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full font-medium">
-                                  {user?.subscription?.plan || 'Free Plan'}
+                                  Free Plan
                                 </span>
                               </div>
                             </div>

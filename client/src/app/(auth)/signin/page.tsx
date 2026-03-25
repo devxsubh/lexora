@@ -8,7 +8,7 @@ import { useAuthStore } from '@/store/authStore'
 
 export default function SignInPage() {
   const router = useRouter()
-  const { signIn, signInBypass, isLoading, error, clearError, isAuthenticated } = useAuthStore()
+  const { signIn, isLoading, error, clearError, isAuthenticated } = useAuthStore()
   const [emailOrUsername, setEmailOrUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -31,9 +31,23 @@ export default function SignInPage() {
     e.preventDefault()
     setLocalError('')
     clearError()
-    // Dev bypass: sign in without credentials so you can check the app. Revert to real signIn when done.
-    signInBypass()
-    router.push('/contracts/draft')
+
+    if (!emailOrUsername.trim()) {
+      setLocalError('Please enter your email address')
+      return
+    }
+
+    if (!password) {
+      setLocalError('Please enter your password')
+      return
+    }
+
+    try {
+      await signIn({ email: emailOrUsername.trim(), password })
+      router.push('/dashboard')
+    } catch (err: any) {
+      setLocalError(err.message || 'Sign in failed. Please try again.')
+    }
   }
 
   const displayError = localError || error

@@ -15,8 +15,7 @@ function ResetPasswordContent() {
     password: '',
     confirmPassword: '',
   })
-  const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
+  const [token, setToken] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -24,23 +23,10 @@ function ResetPasswordContent() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    // Get email from URL or sessionStorage
-    const emailParam = searchParams.get('email')
-    const storedEmail = typeof window !== 'undefined' ? sessionStorage.getItem('resetPasswordEmail') : null
-    const storedOtp = typeof window !== 'undefined' ? sessionStorage.getItem('resetPasswordOtp') : null
-
-    if (emailParam) {
-      setEmail(emailParam)
-    } else if (storedEmail) {
-      setEmail(storedEmail)
-    }
-
-    if (storedOtp) {
-      setOtp(storedOtp)
-    }
-
-    // If no email or OTP, redirect to forgot password
-    if (!emailParam && !storedEmail) {
+    const tokenParam = searchParams.get('token')
+    if (tokenParam) {
+      setToken(tokenParam)
+    } else {
       router.push('/forgot-password')
     }
   }, [searchParams, router])
@@ -57,9 +43,8 @@ function ResetPasswordContent() {
     e.preventDefault()
     setError('')
 
-    if (!email || !otp) {
-      setError('Missing email or verification code. Please start over.')
-      router.push('/forgot-password')
+    if (!token) {
+      setError('Invalid or missing reset token. Please request a new reset link.')
       return
     }
 
@@ -68,8 +53,8 @@ function ResetPasswordContent() {
       return
     }
 
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters long')
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long')
       return
     }
 
@@ -77,17 +62,9 @@ function ResetPasswordContent() {
 
     try {
       await authApi.resetPassword({
-        email,
-        otp,
+        token,
         password: formData.password,
-        confirmPassword: formData.confirmPassword,
       })
-
-      // Clear session storage
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('resetPasswordOtp')
-        sessionStorage.removeItem('resetPasswordEmail')
-      }
 
       setSuccess(true)
       setTimeout(() => {
@@ -95,7 +72,7 @@ function ResetPasswordContent() {
       }, 2000)
     } catch (err: any) {
       const errorMessage =
-        err.response?.data?.message || err.message || 'Failed to reset password. Please try again.'
+        err.response?.data?.message || err.message || 'Failed to reset password. The link may have expired.'
       setError(errorMessage)
     } finally {
       setIsLoading(false)
@@ -105,7 +82,6 @@ function ResetPasswordContent() {
   if (success) {
     return (
       <div className="h-screen flex overflow-hidden">
-        {/* Left Panel - Form (50%) */}
         <div className="flex-1 flex items-center justify-center p-6 lg:p-8 bg-white overflow-hidden">
           <div className="w-full max-w-md text-center">
             <div className="flex justify-center mb-6">
@@ -125,40 +101,23 @@ function ResetPasswordContent() {
           </div>
         </div>
 
-        {/* Right Panel - Abstract Design (50%) */}
         <div className="flex-1 bg-white relative overflow-hidden">
-          {/* Abstract Gradient Shapes */}
           <div className="absolute inset-0">
-            {/* Large diagonal shape - top right */}
             <div
               className="absolute top-0 right-0 w-[600px] h-[400px] rounded-[100px] transform rotate-[-25deg] translate-x-[200px] translate-y-[-100px]"
-              style={{
-                background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)',
-              }}
+              style={{ background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)' }}
             />
-            
-            {/* Large diagonal shape - bottom right */}
             <div
               className="absolute bottom-0 right-0 w-[600px] h-[400px] rounded-[100px] transform rotate-[25deg] translate-x-[200px] translate-y-[100px]"
-              style={{
-                background: 'linear-gradient(45deg, #ea580c 0%, #fb923c 100%)',
-              }}
+              style={{ background: 'linear-gradient(45deg, #ea580c 0%, #fb923c 100%)' }}
             />
-            
-            {/* Medium vertical shape - mid left */}
             <div
               className="absolute top-1/2 left-0 w-[300px] h-[250px] rounded-[80px] transform -translate-y-1/2 -translate-x-[100px] rotate-[-15deg]"
-              style={{
-                background: 'linear-gradient(180deg, #ea580c 0%, #fb923c 100%)',
-              }}
+              style={{ background: 'linear-gradient(180deg, #ea580c 0%, #fb923c 100%)' }}
             />
-            
-            {/* Small shape - bottom left */}
             <div
               className="absolute bottom-0 left-0 w-[200px] h-[150px] rounded-[60px] transform translate-x-[-50px] translate-y-[50px] rotate-[20deg]"
-              style={{
-                background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)',
-              }}
+              style={{ background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)' }}
             />
           </div>
         </div>
@@ -168,7 +127,6 @@ function ResetPasswordContent() {
 
   return (
     <div className="h-screen flex overflow-hidden">
-      {/* Left Panel - Form (50%) */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-8 bg-white overflow-hidden">
         <div className="w-full max-w-md">
           {/* Logo */}
@@ -176,7 +134,7 @@ function ResetPasswordContent() {
             <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-900 rounded-lg mb-2">
               <span className="text-white text-lg font-bold">L</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">LexiDraft</h1>
+            <h1 className="text-xl font-bold text-gray-900">Lexora</h1>
           </div>
 
           {/* Lock Icon */}
@@ -200,7 +158,6 @@ function ResetPasswordContent() {
               </div>
             )}
 
-            {/* New Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
                 New Password
@@ -233,7 +190,6 @@ function ResetPasswordContent() {
               </div>
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Confirm Password
@@ -266,7 +222,6 @@ function ResetPasswordContent() {
               </div>
             </div>
 
-            {/* Reset Password Button */}
             <Button
               type="submit"
               variant="primary"
@@ -288,7 +243,6 @@ function ResetPasswordContent() {
             </Button>
           </form>
 
-          {/* Back to Sign In */}
           <div className="mt-4 text-center">
             <Link
               href="/signin"
@@ -298,7 +252,6 @@ function ResetPasswordContent() {
             </Link>
           </div>
 
-          {/* Security Notice */}
           <div className="mt-5 p-3 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-500 text-center">
               Your data is protected with industry-grade encryption
@@ -307,40 +260,23 @@ function ResetPasswordContent() {
         </div>
       </div>
 
-      {/* Right Panel - Abstract Design (50%) */}
       <div className="flex-1 bg-white relative overflow-hidden">
-        {/* Abstract Gradient Shapes */}
         <div className="absolute inset-0">
-          {/* Large diagonal shape - top right */}
           <div
             className="absolute top-0 right-0 w-[600px] h-[400px] rounded-[100px] transform rotate-[-25deg] translate-x-[200px] translate-y-[-100px]"
-            style={{
-              background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)' }}
           />
-          
-          {/* Large diagonal shape - bottom right */}
           <div
             className="absolute bottom-0 right-0 w-[600px] h-[400px] rounded-[100px] transform rotate-[25deg] translate-x-[200px] translate-y-[100px]"
-            style={{
-              background: 'linear-gradient(45deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(45deg, #ea580c 0%, #fb923c 100%)' }}
           />
-          
-          {/* Medium vertical shape - mid left */}
           <div
             className="absolute top-1/2 left-0 w-[300px] h-[250px] rounded-[80px] transform -translate-y-1/2 -translate-x-[100px] rotate-[-15deg]"
-            style={{
-              background: 'linear-gradient(180deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(180deg, #ea580c 0%, #fb923c 100%)' }}
           />
-          
-          {/* Small shape - bottom left */}
           <div
             className="absolute bottom-0 left-0 w-[200px] h-[150px] rounded-[60px] transform translate-x-[-50px] translate-y-[50px] rotate-[20deg]"
-            style={{
-              background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)' }}
           />
         </div>
       </div>
@@ -355,4 +291,3 @@ export default function ResetPasswordPage() {
     </Suspense>
   )
 }
-

@@ -47,20 +47,18 @@ export function UserProfileDropdown() {
   }
 
   const getInitials = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
-    }
-    if (user?.userName) {
-      return user.userName.slice(0, 2).toUpperCase()
+    if (user?.name) {
+      const parts = user.name.trim().split(/\s+/)
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      }
+      return user.name.slice(0, 2).toUpperCase()
     }
     return 'U'
   }
 
   const getDisplayName = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName} ${user.lastName}`
-    }
-    return user?.userName || 'User'
+    return user?.name || 'User'
   }
 
   return (
@@ -106,9 +104,9 @@ export function UserProfileDropdown() {
                 <p className="text-xs text-gray-500 truncate">
                   {user?.email}
                 </p>
-                {user?.role?.name && (
+                {user?.roles?.[0]?.name && (
                   <span className="inline-flex items-center px-2 py-0.5 mt-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                    {user.role.name}
+                    {user.roles[0].name}
                   </span>
                 )}
               </div>
