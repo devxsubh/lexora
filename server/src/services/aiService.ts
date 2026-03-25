@@ -21,6 +21,11 @@ async function generateWithRetry(prompt: string) {
 	return withGeminiRetry(() => model.generateContent(prompt));
 }
 
+async function generateStreamWithRetry(prompt: string) {
+	const model = getModel();
+	return withGeminiRetry(() => model.generateContentStream(prompt));
+}
+
 /** Minimal Gemini call for connectivity checks (uses quota). */
 export async function geminiPing() {
 	const prompt = 'hi';
@@ -96,6 +101,11 @@ function textToBlocks(text: string): Record<string, unknown>[] {
 	});
 }
 
+type StreamEvent =
+	| { type: 'chunk'; text: string }
+	| { type: 'done'; contractId: string; title: string; content: Record<string, unknown>[] }
+	| { type: 'error'; message: string };
+
 export async function sendChatMessage(contractId: string, userId: string, message: string) {
 	const contract = await Contract.findOne({ _id: contractId, userId });
 	if (!contract) throw new NotFoundError('Contract not found');
@@ -144,6 +154,148 @@ Provide a helpful, accurate response. If the user asks to modify the contract, d
 		content: responseText,
 		timestamp: assistantMsg.createdAt?.toISOString()
 	};
+}
+
+function tryParseJsonResponse<T>(text: string): T | null {
+	const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+	try {
+		return JSON.parse(cleaned) as T;
+	} catch {
+		return null;
+	}
+}
+
+export async function sendChatMessageWithEdits(contractId: string, userId: string, message: string) {
+	const contract = await Contract.findOne({ _id: contractId, userId });
+	if (!contract) throw new NotFoundError('Contract not found');
+
+	let session = await AiChatSession.findOne({ contractId, userId });
+	if (!session) {
+		session = await AiChatSession.create({ contractId, userId });
+	}
+
+	await AiMessage.create({
+		sessionId: session._id,
+		role: 'user',
+		content: message
+	});
+
+	const history = await AiMessage.find({ sessionId: session._id })
+		.sort({ createdAt: 1 })
+		.limit(20);
+
+	const contractText = blocksToText(contract.content as unknown as Record<string, unknown>[]);
+
+	const prompt = `You are a legal contract assistant for the document titled "${contract.title}".
+
+Contract content:
+${contractText}
+
+Chat history:
+${history.map((m) => `${m.role}: ${m.content}`).join('\n')}
+
+User: ${message}
+
+Respond ONLY in valid JSON with this exact shape:
+{
+  "reply": "string",
+  "editedContract": "string | null"
+}
+
+Rules:
+- "reply" is your conversational answer to the user.
+- Set "editedContract" to a full updated contract in plain text with markdown-style headings (#, ##, ###) ONLY when the user explicitly asks to modify the contract content.
+- Otherwise set "editedContract" to null.
+- Do not include code fences or extra keys.`;
+
+	const result = await generateWithRetry(prompt);
+	const responseText = result.response.text();
+
+	const parsed = tryParseJsonResponse<{ reply: string; editedContract: string | null }>(responseText);
+	const reply = parsed?.reply || responseText;
+
+	let contractUpdated = false;
+	let updatedContent: Record<string, unknown>[] | undefined;
+	if (parsed?.editedContract && typeof parsed.editedContract === 'string' && parsed.editedContract.trim()) {
+		const newBlocks = textToBlocks(parsed.editedContract);
+		contract.content = newBlocks as unknown as typeof contract.content;
+		await contract.save();
+		contractUpdated = true;
+		updatedContent = newBlocks;
+	}
+
+	const assistantMsg = await AiMessage.create({
+		sessionId: session._id,
+		role: 'assistant',
+		content: reply
+	});
+
+	return {
+		id: assistantMsg.id,
+		role: 'assistant' as const,
+		content: reply,
+		timestamp: assistantMsg.createdAt?.toISOString(),
+		contractUpdated,
+		updatedContent
+	};
+}
+
+export async function* generateContractStream(userId: string, promptText: string): AsyncGenerator<StreamEvent> {
+	try {
+		const aiPrompt = `Generate a complete legal contract based on the following request. Format it with clear sections, headings, and standard legal language.
+
+Request: ${promptText}
+
+Structure the contract with:
+1. Title
+2. Parties
+3. Recitals/Background
+4. Definitions (if needed)
+5. Main terms and conditions
+6. Obligations of each party
+7. Term and termination
+8. Confidentiality (if applicable)
+9. Limitation of liability
+10. General provisions (governing law, notices, entire agreement, amendments)
+11. Signature blocks
+
+Return the contract as plain text with markdown-style headings (# for title, ## for sections, ### for subsections). Use bullet points where appropriate.`;
+
+		const streamResult = await generateStreamWithRetry(aiPrompt);
+		let fullText = '';
+
+		for await (const chunk of streamResult.stream) {
+			const text = chunk.text();
+			if (text) {
+				fullText += text;
+				yield { type: 'chunk', text };
+			}
+		}
+
+		const blocks = textToBlocks(fullText);
+		const titleMatch = fullText.match(/^#\s+(.+)/m);
+		const title = titleMatch ? titleMatch[1].trim() : 'AI Generated Contract';
+
+		const contract = await Contract.create({
+			title,
+			content: blocks,
+			status: 'draft',
+			userId,
+			lexiId: `lexi-${uuidv4().slice(0, 8)}`
+		});
+
+		await Activity.create({
+			userId,
+			contractId: contract._id,
+			text: `Generated contract "${contract.title}" from AI prompt`,
+			type: 'create'
+		});
+
+		yield { type: 'done', contractId: contract.id, title: contract.title, content: blocks };
+	} catch (e) {
+		const message = e instanceof Error ? e.message : 'Failed to generate contract';
+		yield { type: 'error', message };
+	}
 }
 
 export async function reviewContract(contractId: string, userId: string) {
@@ -339,6 +491,7 @@ Return the contract as plain text with markdown-style headings (# for title, ## 
 
 export default {
 	sendChatMessage,
+	sendChatMessageWithEdits,
 	reviewContract,
 	rewriteSelection,
 	explainClause,
@@ -346,5 +499,6 @@ export default {
 	generateClauseFromPrompt,
 	suggestClauses,
 	generateContract,
+	generateContractStream,
 	geminiPing
 };
