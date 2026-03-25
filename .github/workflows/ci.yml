@@ -8,7 +8,8 @@ on:
     branches: [main, develop]
 
 jobs:
-  ci:
+  server:
+    name: Server CI
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,18 +20,19 @@ jobs:
         with:
           mongodb-version: '7.0'
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Generate CI secrets
         id: secrets
         run: |
-          # Unique DB name per run (no cross-run pollution)
           echo "db_name=lexora_ci_${{ github.run_id }}" >> $GITHUB_OUTPUT
-          # JWT key pair (RS256) - base64 for config (delimiter must not appear in base64)
           openssl genrsa -out /tmp/jwt_private.pem 2048
           openssl rsa -in /tmp/jwt_private.pem -pubout -out /tmp/jwt_public.pem
           echo "jwt_private_b64<<DELIM_JWT_PRIV" >> $GITHUB_OUTPUT
@@ -41,17 +43,16 @@ jobs:
           base64 -w0 < /tmp/jwt_public.pem >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "DELIM_JWT_PUB" >> $GITHUB_OUTPUT
-          # Test user credentials for integration tests (random, no real email)
           echo "test_email=test-$(openssl rand -hex 8)@example.com" >> $GITHUB_OUTPUT
           echo "test_password=$(openssl rand -base64 16)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint server
+        run: pnpm --filter server lint
 
-      - name: Test
+      - name: Test server
         env:
           NODE_ENV: test
           DATABASE_URI: mongodb://127.0.0.1:27017/${{ steps.secrets.outputs.db_name }}
@@ -59,19 +60,50 @@ jobs:
           JWT_ACCESS_TOKEN_SECRET_PUBLIC: ${{ steps.secrets.outputs.jwt_public_b64 }}
           TEST_USER_EMAIL: ${{ steps.secrets.outputs.test_email }}
           TEST_USER_PASSWORD: ${{ steps.secrets.outputs.test_password }}
-        run: npm run test
+        run: pnpm --filter server test
 
-      - name: Build
-        run: npm run build
+      - name: Build server
+        run: pnpm --filter server build
 
-      - name: Smoke
+      - name: Smoke test
         env:
           NODE_ENV: test
           PORT: 666
           DATABASE_URI: mongodb://127.0.0.1:27017/${{ steps.secrets.outputs.db_name }}
           JWT_ACCESS_TOKEN_SECRET_PRIVATE: ${{ steps.secrets.outputs.jwt_private_b64 }}
           JWT_ACCESS_TOKEN_SECRET_PUBLIC: ${{ steps.secrets.outputs.jwt_public_b64 }}
+        working-directory: server
         run: node scripts/smoke.mjs
 
       - name: Build Docker image (verify Dockerfile)
-        run: docker build -t lexora:ci .
+        run: docker build -t lexora-server:ci server/
+
+  client:
+    name: Client CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint client
+        run: pnpm --filter client lint
+
+      - name: Type check client
+        run: pnpm --filter client type-check
+
+      - name: Build client
+        env:
+          NEXT_PUBLIC_BACKEND_URL: http://localhost:8080
+        run: pnpm --filter client build
