@@ -1,0 +1,254 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* BlockNote Editor Full-Page Styles */
+.bn-editor {
+  min-height: 100% !important;
+  padding: 0 !important;
+  cursor: text !important;
+  pointer-events: auto !important;
+  background: transparent !important;
+  color: #111827 !important;
+}
+
+.bn-editor:focus {
+  outline: none;
+}
+
+.bn-editor[contenteditable="true"] {
+  cursor: text !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  background: transparent !important;
+  color: #111827 !important;
+}
+
+.bn-editor .bn-block-content {
+  padding: 0 !important;
+  pointer-events: auto !important;
+  background: transparent !important;
+  color: #111827 !important;
+}
+
+/* Remove default editor container padding */
+.bn-container {
+  padding: 0 !important;
+  pointer-events: auto !important;
+  background: transparent !important;
+}
+
+/* Ensure all editor elements are interactive */
+.bn-block {
+  pointer-events: auto !important;
+  background: transparent !important;
+}
+
+.bn-block-content {
+  pointer-events: auto !important;
+  background: transparent !important;
+  color: #111827 !important;
+}
+
+/* Fix placeholder text color */
+.bn-editor::placeholder,
+.bn-block-content::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Side Menu Styles - Ensure + icon and drag handle are visible */
+.bn-side-menu {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.bn-side-menu-button {
+  opacity: 1 !important;
+  cursor: pointer !important;
+}
+
+/* Make sure blocks are interactive */
+.bn-block {
+  position: relative;
+}
+
+.bn-block:hover .bn-side-menu {
+  opacity: 1 !important;
+}
+
+/* Variable placeholders in contract editor (e.g. {{Variable Name}}) - yellow highlight, stays after fill */
+.bn-editor .variable-placeholder,
+.variable-placeholder {
+  background-color: rgb(254 240 138) !important;
+  color: inherit !important;
+  border-radius: 0.2rem;
+  padding: 0.05em 0.2em;
+  cursor: pointer;
+  border: 1px solid rgb(253 224 71);
+}
+.bn-editor .variable-placeholder:hover,
+.variable-placeholder:hover {
+  background-color: rgb(253 224 71) !important;
+}
+
+/* Theme Styles */
+[data-theme='light'] {
+  --editor-bg: #ffffff;
+  --editor-text: #111827;
+  --sidebar-bg: #f9fafb;
+  --border-color: #e5e7eb;
+}
+
+[data-theme='dark'] {
+  --editor-bg: #1f2937;
+  --editor-text: #f9fafb;
+  --sidebar-bg: #111827;
+  --border-color: #374151;
+}
+
+[data-theme='legal-gold'] {
+  --editor-bg: #fef9e7;
+  --editor-text: #1a1a1a;
+  --sidebar-bg: #fef3c7;
+  --border-color: #fbbf24;
+}
+
+[data-theme='midnight-blue'] {
+  --editor-bg: #0f172a;
+  --editor-text: #e2e8f0;
+  --sidebar-bg: #1e293b;
+  --border-color: #334155;
+}
+
+.theme-light {
+  background-color: var(--editor-bg);
+  color: var(--editor-text);
+}
+
+.theme-dark {
+  background-color: var(--editor-bg);
+  color: var(--editor-text);
+}
+
+.theme-legal-gold {
+  background-color: var(--editor-bg);
+  color: var(--editor-text);
+}
+
+.theme-midnight-blue {
+  background-color: var(--editor-bg);
+  color: var(--editor-text);
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+  }
+
+  body {
+    @apply bg-white text-gray-900 antialiased;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+/* Hide scrollbar in editor specifically */
+[class*="bn-"] {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+[class*="bn-"]::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+/* Smooth animations */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes slideLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-left {
+  animation: slideLeft 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes bounceSubtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-bounce-subtle {
+  animation: bounceSubtle 0.6s ease-in-out;
+}
+
