@@ -1,28 +1,27 @@
-export type BlockType = 'paragraph' | 'heading' | 'list' | 'clause' | 'section'
-
 export interface ContractBlock {
-  id: string
-  type: BlockType
-  content: string
-  metadata: {
-    level?: number // for headings
-    listType?: 'ordered' | 'unordered' // for lists
-    clauseId?: string // if from clause library
-    [key: string]: any
-  }
+  id?: string
+  type: string
+  props?: Record<string, unknown>
+  content?: Array<{ type: string; text: string; styles?: Record<string, unknown> }>
+  children?: ContractBlock[]
 }
 
 export interface Contract {
   id: string
   title: string
   content: ContractBlock[]
+  status: 'draft' | 'reviewing' | 'finalized'
+  userId?: string
+  lexiId?: string
+  metadata?: Record<string, unknown>
+  isFavorite?: boolean
+  party?: string
+  contractType?: string
+  aiRiskScore?: number
+  riskLevel?: 'Low' | 'Medium' | 'High'
+  lifecycleStage?: number
+  effectiveDate?: string
+  summary?: string
   createdAt: string
   updatedAt: string
-  status: 'draft' | 'reviewing' | 'finalized'
-  metadata?: {
-    parties?: string[]
-    type?: string
-    [key: string]: any
-  }
 }
-
