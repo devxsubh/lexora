@@ -18,6 +18,12 @@ router.post(
 	catchAsync(contractController.generateContract)
 );
 router.post(
+	'/generate-stream',
+	authenticate(),
+	validate(contractValidation.generateContract),
+	catchAsync(contractController.generateContractStream)
+);
+router.post(
 	'/from-template',
 	authenticate(),
 	validate(templateValidation.createFromTemplate),
