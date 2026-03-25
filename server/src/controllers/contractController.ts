@@ -69,6 +69,35 @@ export const generateContract = async (req: Request, res: Response): Promise<Res
 	return res.status(201).json({ success: true, message: 'Contract generated successfully', data: contract });
 };
 
+export const generateContractStream = async (req: Request, res: Response): Promise<void> => {
+	const userId = req.user!.id;
+
+	res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+	res.setHeader('Cache-Control', 'no-cache, no-transform');
+	res.setHeader('Connection', 'keep-alive');
+
+	// If compression is enabled upstream, this hints not to buffer.
+	res.setHeader('X-Accel-Buffering', 'no');
+
+	const writeEvent = (payload: unknown) => {
+		res.write(`data: ${JSON.stringify(payload)}\n\n`);
+	};
+
+	try {
+		for await (const ev of aiService.generateContractStream(userId, req.body.prompt)) {
+			writeEvent(ev);
+			if (ev.type === 'done' || ev.type === 'error') {
+				break;
+			}
+		}
+	} catch (e) {
+		const message = e instanceof Error ? e.message : 'Failed to generate contract';
+		writeEvent({ type: 'error', message });
+	} finally {
+		res.end();
+	}
+};
+
 export const downloadContract = async (req: Request, res: Response): Promise<void | Response> => {
 	const userId = req.user!.id;
 	const format = (req.query.format as string) || 'pdf';
@@ -117,6 +146,7 @@ export default {
 	autosaveContract,
 	deleteContract,
 	generateContract,
+	generateContractStream,
 	downloadContract,
 	favoriteContract,
 	unfavoriteContract

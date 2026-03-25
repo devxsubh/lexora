@@ -8,7 +8,7 @@ export const geminiPing = async (_req: Request, res: Response): Promise<Response
 
 export const sendChatMessage = async (req: Request, res: Response): Promise<Response> => {
 	const userId = req.user!.id;
-	const result = await aiService.sendChatMessage(req.params.contractId, userId, req.body.message);
+	const result = await aiService.sendChatMessageWithEdits(req.params.contractId, userId, req.body.message);
 	return res.json({ success: true, data: result });
 };
 
