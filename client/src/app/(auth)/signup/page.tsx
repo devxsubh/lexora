@@ -4,13 +4,12 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
-import { authApi } from '@/services/api/auth'
 
 export default function SignUpPage() {
   const router = useRouter()
   const { signUp, isLoading, error, clearError, isAuthenticated } = useAuthStore()
   const [formData, setFormData] = useState({
-    userName: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -18,49 +17,17 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [localError, setLocalError] = useState('')
-  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
-  const [checkingUsername, setCheckingUsername] = useState(false)
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       router.push('/dashboard')
     }
   }, [isAuthenticated, router])
 
-  // Clear errors when component mounts or inputs change
   useEffect(() => {
     clearError()
     setLocalError('')
   }, [clearError])
-
-  // Check username availability
-  useEffect(() => {
-    const checkUsername = async () => {
-      if (!formData.userName || formData.userName.length < 6) {
-        setUsernameAvailable(null)
-        return
-      }
-
-      if (!/^[a-zA-Z0-9]+$/.test(formData.userName)) {
-        setUsernameAvailable(false)
-        return
-      }
-
-      setCheckingUsername(true)
-      try {
-        const response = await authApi.checkUsername(formData.userName)
-        setUsernameAvailable(response.data.available)
-      } catch (err) {
-        setUsernameAvailable(false)
-      } finally {
-        setCheckingUsername(false)
-      }
-    }
-
-    const timeoutId = setTimeout(checkUsername, 500)
-    return () => clearTimeout(timeoutId)
-  }, [formData.userName])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -75,23 +42,8 @@ export default function SignUpPage() {
     setLocalError('')
     clearError()
 
-    if (!formData.userName.trim()) {
-      setLocalError('Please enter a username')
-      return
-    }
-
-    if (formData.userName.length < 6 || formData.userName.length > 66) {
-      setLocalError('Username must be between 6 and 66 characters')
-      return
-    }
-
-    if (!/^[a-zA-Z0-9]+$/.test(formData.userName)) {
-      setLocalError('Username must contain only letters and numbers')
-      return
-    }
-
-    if (usernameAvailable === false) {
-      setLocalError('Username is already taken')
+    if (!formData.name.trim() || formData.name.trim().length < 2) {
+      setLocalError('Name must be at least 2 characters')
       return
     }
 
@@ -100,8 +52,8 @@ export default function SignUpPage() {
       return
     }
 
-    if (formData.password.length < 6 || formData.password.length > 666) {
-      setLocalError('Password must be between 6 and 666 characters')
+    if (formData.password.length < 6 || formData.password.length > 128) {
+      setLocalError('Password must be between 6 and 128 characters')
       return
     }
 
@@ -112,10 +64,9 @@ export default function SignUpPage() {
 
     try {
       await signUp({
-        userName: formData.userName.trim(),
+        name: formData.name.trim(),
         email: formData.email.trim(),
-        password: formData.password.trim(),
-        confirmPassword: formData.confirmPassword.trim(),
+        password: formData.password,
       })
       router.push('/dashboard')
     } catch (err: any) {
@@ -176,43 +127,22 @@ export default function SignUpPage() {
             </div>
           )}
 
-          {/* Username */}
+          {/* Name */}
           <div className="space-y-1.5">
-            <label htmlFor="userName" className="block text-sm font-medium text-gray-700">
-              Username
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              Full Name
             </label>
             <input
-              id="userName"
-              name="userName"
+              id="name"
+              name="name"
               type="text"
-              value={formData.userName}
+              value={formData.name}
               onChange={handleChange}
-              placeholder="yourname123"
+              placeholder="John Doe"
               required
-              maxLength={66}
-              className={`w-full h-11 px-4 rounded-lg border bg-white text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all ${
-                usernameAvailable === false
-                  ? 'border-red-300 focus:ring-red-500'
-                  : usernameAvailable === true
-                  ? 'border-green-300 focus:ring-green-500'
-                  : 'border-gray-200'
-              }`}
+              maxLength={200}
+              className="w-full h-11 px-4 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
             />
-            {formData.userName && (
-              <p className="text-xs">
-                {checkingUsername ? (
-                  <span className="text-gray-500">Checking availability...</span>
-                ) : usernameAvailable === true ? (
-                  <span className="text-green-600">✓ Username available</span>
-                ) : usernameAvailable === false ? (
-                  <span className="text-red-500">✗ Username already taken</span>
-                ) : formData.userName.length > 0 && formData.userName.length < 6 ? (
-                  <span className="text-amber-600">Username must be at least 6 characters</span>
-                ) : !/^[a-zA-Z0-9]+$/.test(formData.userName) ? (
-                  <span className="text-red-500">Only letters and numbers allowed</span>
-                ) : null}
-              </p>
-            )}
           </div>
 
           {/* Email */}
@@ -246,7 +176,7 @@ export default function SignUpPage() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 required
-                maxLength={666}
+                maxLength={128}
                 className="w-full h-11 px-4 pr-11 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
               />
               <button
@@ -277,7 +207,7 @@ export default function SignUpPage() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 required
-                maxLength={666}
+                maxLength={128}
                 className="w-full h-11 px-4 pr-11 rounded-lg border border-gray-200 bg-white text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
               />
               <button
@@ -300,7 +230,7 @@ export default function SignUpPage() {
           {/* Register Button */}
           <button
             type="submit"
-            disabled={isLoading || usernameAvailable === false || checkingUsername}
+            disabled={isLoading}
             className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isLoading ? (
@@ -317,4 +247,3 @@ export default function SignUpPage() {
     </div>
   )
 }
-

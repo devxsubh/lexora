@@ -104,10 +104,8 @@ export const useAuthStore = create<AuthState>()(
       signInBypass: () => {
         const devUser: User = {
           id: 'dev-bypass',
-          userName: 'devuser',
+          name: 'Dev User',
           email: 'dev@test.com',
-          firstName: 'Dev',
-          lastName: 'User',
         }
         const devTokens: AuthTokens = {
           accessToken: { token: 'dev-bypass-token', expires: new Date(Date.now() + 86400000).toISOString() },
@@ -259,11 +257,11 @@ export const useAuthStore = create<AuthState>()(
 
           const response = await authApi.refreshTokens({ refreshToken })
 
-          if (!response.data?.accessToken?.token || !response.data?.refreshToken?.token) {
+          if (!response.data?.tokens?.accessToken?.token || !response.data?.tokens?.refreshToken?.token) {
             throw new Error('Invalid token response')
           }
 
-          const newTokens = response.data
+          const newTokens = response.data.tokens
 
           // Persist new tokens
           persistTokens(newTokens)

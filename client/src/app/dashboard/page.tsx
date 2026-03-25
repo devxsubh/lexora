@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/Card'
-import { LexiDraftLogo } from '@/components/ui/LexiDraftLogo'
+import { LexoraLogo } from '@/components/ui/LexoraLogo'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { useAuthStore } from '@/store/authStore'
 import { UserProfileDropdown } from '@/components/user/UserProfileDropdown'
@@ -141,7 +141,7 @@ const SAMPLE_NOTIFICATIONS = [
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
-  const greetingName = user?.firstName || 'Divyanshi'
+  const greetingName = user?.name?.split(/\s+/)[0] || 'there'
   const [searchQuery, setSearchQuery] = useState('')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const filteredRows = useMemo(() => {
@@ -195,7 +195,7 @@ function DashboardSidebar({ mobileOpen, onCloseMobile }: { mobileOpen?: boolean;
   const sidebarContent = (
     <>
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
-        <LexiDraftLogo size="md" />
+        <LexoraLogo size="md" />
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-700">
             Premium

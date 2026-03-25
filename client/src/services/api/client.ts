@@ -10,14 +10,14 @@ const getApiBaseUrl = (): string => {
       (window as any).__ENV__?.VITE_BACKEND_URL ||
       process.env.NEXT_PUBLIC_BACKEND_URL ||
       process.env.NEXT_PUBLIC_API_URL ||
-      'http://localhost:5000'
+      'http://localhost:8080'
     )
   }
   return (
     process.env.VITE_BACKEND_URL || 
     process.env.NEXT_PUBLIC_BACKEND_URL || 
     process.env.NEXT_PUBLIC_API_URL || 
-    'http://localhost:5000'
+    'http://localhost:8080'
   )
 }
 
@@ -162,21 +162,18 @@ apiClient.interceptors.response.use(
           { headers: { 'Content-Type': 'application/json' } }
         )
 
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data
+        const { tokens: newTokens } = response.data.data
 
-        if (!newAccessToken?.token || !newRefreshToken?.token) {
+        if (!newTokens?.accessToken?.token || !newTokens?.refreshToken?.token) {
           throw new Error('Invalid token response')
         }
 
-        // Update stored tokens
-        TokenManager.setTokens(newAccessToken.token, newRefreshToken.token)
+        TokenManager.setTokens(newTokens.accessToken.token, newTokens.refreshToken.token)
 
-        // Process queued requests
-        processQueue(null, newAccessToken.token)
+        processQueue(null, newTokens.accessToken.token)
 
-        // Retry original request with new token
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken.token}`
+          originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken.token}`
         }
         
         return apiClient(originalRequest)

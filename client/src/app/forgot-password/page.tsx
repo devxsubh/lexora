@@ -1,15 +1,13 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mail, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Mail, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/Input'
 import { authApi } from '@/services/api/auth'
 
 export default function ForgotPasswordPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -19,7 +17,6 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setError('')
 
-    // Validation
     if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
       setError('Please enter a valid email address')
       return
@@ -30,13 +27,9 @@ export default function ForgotPasswordPage() {
     try {
       await authApi.forgotPassword({ email: email.trim() })
       setSuccess(true)
-      // Navigate to verification code page after a short delay
-      setTimeout(() => {
-        router.push(`/forgot-password/verify?email=${encodeURIComponent(email.trim())}`)
-      }, 1500)
     } catch (err: any) {
       const errorMessage =
-        err.response?.data?.message || err.message || 'Failed to send verification code. Please try again.'
+        err.response?.data?.message || err.message || 'Failed to send reset link. Please try again.'
       setError(errorMessage)
     } finally {
       setIsLoading(false)
@@ -53,7 +46,7 @@ export default function ForgotPasswordPage() {
             <div className="inline-flex items-center justify-center w-10 h-10 bg-gray-900 rounded-lg mb-2">
               <span className="text-white text-lg font-bold">L</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">LexiDraft</h1>
+            <h1 className="text-xl font-bold text-gray-900">Lexora</h1>
           </div>
 
           {/* Mail Icon */}
@@ -68,8 +61,8 @@ export default function ForgotPasswordPage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-1.5">Forgot Password</h2>
             <p className="text-sm text-gray-600">
               {success
-                ? 'Verification code sent! Redirecting...'
-                : "Enter your email address and we'll send you a verification code"}
+                ? 'Check your inbox for the reset link.'
+                : "Enter your email address and we'll send you a password reset link."}
             </p>
           </div>
 
@@ -82,7 +75,6 @@ export default function ForgotPasswordPage() {
                 </div>
               )}
 
-              {/* Email */}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Email Address
@@ -103,7 +95,6 @@ export default function ForgotPasswordPage() {
                 </div>
               </div>
 
-              {/* Send Verification Code Button */}
               <Button
                 type="submit"
                 variant="primary"
@@ -117,10 +108,7 @@ export default function ForgotPasswordPage() {
                     Sending...
                   </>
                 ) : (
-                  <>
-                    Send Verification Code
-                    <ArrowRight className="w-4 h-4" />
-                  </>
+                  'Send Reset Link'
                 )}
               </Button>
             </form>
@@ -129,7 +117,12 @@ export default function ForgotPasswordPage() {
               <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
                 <Mail className="w-7 h-7 text-green-600" />
               </div>
-              <p className="text-sm text-gray-600">Check your email for the verification code</p>
+              <p className="text-sm text-gray-600 mb-1">
+                We sent a password reset link to <span className="font-medium text-gray-900">{email}</span>.
+              </p>
+              <p className="text-xs text-gray-500">
+                If you don&apos;t see it, check your spam folder.
+              </p>
             </div>
           )}
 
@@ -155,38 +148,22 @@ export default function ForgotPasswordPage() {
 
       {/* Right Panel - Abstract Design (50%) */}
       <div className="flex-1 bg-white relative overflow-hidden">
-        {/* Abstract Gradient Shapes */}
         <div className="absolute inset-0">
-          {/* Large diagonal shape - top right */}
           <div
             className="absolute top-0 right-0 w-[600px] h-[400px] rounded-[100px] transform rotate-[-25deg] translate-x-[200px] translate-y-[-100px]"
-            style={{
-              background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)' }}
           />
-          
-          {/* Large diagonal shape - bottom right */}
           <div
             className="absolute bottom-0 right-0 w-[600px] h-[400px] rounded-[100px] transform rotate-[25deg] translate-x-[200px] translate-y-[100px]"
-            style={{
-              background: 'linear-gradient(45deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(45deg, #ea580c 0%, #fb923c 100%)' }}
           />
-          
-          {/* Medium vertical shape - mid left */}
           <div
             className="absolute top-1/2 left-0 w-[300px] h-[250px] rounded-[80px] transform -translate-y-1/2 -translate-x-[100px] rotate-[-15deg]"
-            style={{
-              background: 'linear-gradient(180deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(180deg, #ea580c 0%, #fb923c 100%)' }}
           />
-          
-          {/* Small shape - bottom left */}
           <div
             className="absolute bottom-0 left-0 w-[200px] h-[150px] rounded-[60px] transform translate-x-[-50px] translate-y-[50px] rotate-[20deg]"
-            style={{
-              background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)',
-            }}
+            style={{ background: 'linear-gradient(135deg, #ea580c 0%, #fb923c 100%)' }}
           />
         </div>
       </div>
