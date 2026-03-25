@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import type { PartialBlock } from '@blocknote/core'
 import { AlertTriangle, Brain, FileText, Home, List, Maximize2, Send, Sparkles, Wand2, ArrowLeft, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/utils/helpers'
+import { aiService } from '@/services/api/ai'
+import type { ChatMessage } from '@/types/ai'
 import {
   ClauseFinder,
   ContractOutline,
@@ -21,14 +23,6 @@ const RichContractEditor = dynamic(
   { ssr: false }
 )
 
-type ChatMessage = {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  clauseTitle?: string
-  clauseText?: string
-}
-
 type ContextMenuState = {
   open: boolean
   x: number
@@ -36,38 +30,7 @@ type ContextMenuState = {
   selectedText: string
 }
 
-const defaultContent: PartialBlock[] = [
-  {
-    type: 'heading',
-    props: { level: 1 },
-    content: [{ type: 'text', text: 'Confidentiality Agreement', styles: { bold: true } }],
-  },
-  {
-    type: 'paragraph',
-    content: [
-      {
-        type: 'text',
-        text: 'This agreement is entered into between [Company Name] and [Recipient Name] to protect confidential information shared between the parties.',
-        styles: {},
-      },
-    ],
-  },
-  {
-    type: 'heading',
-    props: { level: 2 },
-    content: [{ type: 'text', text: 'Limitation of Liability', styles: { bold: true } }],
-  },
-  {
-    type: 'paragraph',
-    content: [
-      {
-        type: 'text',
-        text: 'Except as required by law, liability shall be limited to fees paid under this agreement during the preceding twelve (12) months.',
-        styles: {},
-      },
-    ],
-  },
-]
+const defaultContent: PartialBlock[] = [{ type: 'paragraph', content: [{ type: 'text', text: '', styles: {} }] }]
 
 type RailTab = 'chat' | 'vars' | 'templates' | 'more' | 'home' | 'outline'
 
@@ -158,107 +121,75 @@ function CollapsedWorkspaceRail({ active, onChange }: { active: RailTab; onChang
   )
 }
 
-function ClausePreviewCard({
-  title,
-  text,
-  onOpenInEditor,
-  onInsertIntoContract,
-}: {
-  title: string
-  text: string
-  onOpenInEditor?: () => void
-  onInsertIntoContract?: () => void
-}) {
-  return (
-    <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Clause suggestion</p>
-          <p className="mt-0.5 text-sm font-semibold text-neutral-900 truncate">{title}</p>
-        </div>
-      </div>
-      <div className="rounded-lg border border-dashed border-neutral-200 bg-white/60 px-3 py-2 font-mono text-xs leading-relaxed text-neutral-800 max-h-40 overflow-y-auto whitespace-pre-wrap">
-        {text}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onOpenInEditor}
-          className="inline-flex items-center justify-center rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 transition-colors"
-        >
-          Open in editor
-        </button>
-        <button
-          type="button"
-          onClick={onInsertIntoContract}
-          className="inline-flex items-center justify-center rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-neutral-50 transition-colors"
-        >
-          Insert into contract
-        </button>
-      </div>
-    </div>
-  )
+
+function blocksFromMarkdown(text: string): PartialBlock[] {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .filter((l) => l.trim().length > 0)
+
+  return lines.map((line, idx) => {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('# ')) {
+      return {
+        id: `h1-${idx}`,
+        type: 'heading',
+        props: { level: 1 },
+        content: [{ type: 'text', text: trimmed.replace(/^#\s+/, ''), styles: {} }],
+      } as PartialBlock
+    }
+    if (trimmed.startsWith('## ')) {
+      return {
+        id: `h2-${idx}`,
+        type: 'heading',
+        props: { level: 2 },
+        content: [{ type: 'text', text: trimmed.replace(/^##\s+/, ''), styles: {} }],
+      } as PartialBlock
+    }
+    if (trimmed.startsWith('### ')) {
+      return {
+        id: `h3-${idx}`,
+        type: 'heading',
+        props: { level: 3 },
+        content: [{ type: 'text', text: trimmed.replace(/^###\s+/, ''), styles: {} }],
+      } as PartialBlock
+    }
+    if (trimmed.startsWith('• ') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      return {
+        id: `b-${idx}`,
+        type: 'bulletListItem',
+        props: {},
+        content: [{ type: 'text', text: trimmed.replace(/^[•\-*]\s+/, ''), styles: {} }],
+      } as PartialBlock
+    }
+    return {
+      id: `p-${idx}`,
+      type: 'paragraph',
+      props: {},
+      content: [{ type: 'text', text: trimmed, styles: {} }],
+    } as PartialBlock
+  })
 }
 
 function ChatPanel({
   title,
-  initialPrompt,
+  messages,
+  inputValue,
+  onInputChange,
+  onSend,
+  isProcessing,
+  disabled,
   onOpenInEditor,
-  onOpenClauseInEditor,
-  onInsertClauseIntoContract,
 }: {
   title: string
-  initialPrompt?: string
+  messages: ChatMessage[]
+  inputValue: string
+  onInputChange: (next: string) => void
+  onSend: () => void
+  isProcessing: boolean
+  disabled?: boolean
   onOpenInEditor?: () => void
-  onOpenClauseInEditor?: (payload: { title: string; text: string }) => void
-  onInsertClauseIntoContract?: (payload: { title: string; text: string }) => void
 }) {
-  const [text, setText] = useState('')
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const base: ChatMessage[] = [
-      {
-        id: 'a1',
-        role: 'assistant',
-        content:
-          'Share what you want to build or paste a clause. I can draft, review, highlight risks, and suggest safe edits.',
-      },
-      {
-        id: 'a-clause-1',
-        role: 'assistant',
-        content: 'Here is a Limitation of Liability clause you can use.',
-        clauseTitle: 'Limitation of Liability',
-        clauseText:
-          'Except as required by law, liability shall be limited to fees paid under this agreement during the preceding twelve (12) months.',
-      },
-    ]
-    if (initialPrompt?.trim()) {
-      base.push({ id: 'u1', role: 'user', content: initialPrompt.trim() })
-      base.push({
-        id: 'a2',
-        role: 'assistant',
-        content:
-          'Got it. I’ll generate a first draft in the editor and highlight any risky language. Want this in Indian jurisdiction or US?',
-      })
-    }
-    return base
-  })
-
-  const send = () => {
-    const v = text.trim()
-    if (!v) return
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', content: v },
-      {
-        id: `a-${Date.now() + 1}`,
-        role: 'assistant',
-        content:
-          'Understood. I’ll update the draft and surface risks + suggested fixes in the review panel (backend integration coming next).',
-      },
-    ])
-    setText('')
-  }
-
   return (
     <section className="border-r border-gray-200 bg-white flex flex-col w-full max-w-full lg:w-[420px]">
       <div className="p-4 border-b border-gray-100">
@@ -270,6 +201,7 @@ function ChatPanel({
           <button
             onClick={onOpenInEditor}
             className="px-3 py-1.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+            type="button"
           >
             Open
           </button>
@@ -279,52 +211,48 @@ function ChatPanel({
       <div className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-3">
         {messages.map((m) => (
           <div key={m.id} className={cn('max-w-[92%]', m.role === 'assistant' ? '' : 'ml-auto')}>
-            {m.role === 'assistant' && m.clauseTitle && m.clauseText ? (
-              <ClausePreviewCard
-                title={m.clauseTitle}
-                text={m.clauseText}
-                onOpenInEditor={
-                  onOpenClauseInEditor
-                    ? () => onOpenClauseInEditor({ title: m.clauseTitle!, text: m.clauseText! })
-                    : undefined
-                }
-                onInsertIntoContract={
-                  onInsertClauseIntoContract
-                    ? () => onInsertClauseIntoContract({ title: m.clauseTitle!, text: m.clauseText! })
-                    : undefined
-                }
-              />
-            ) : (
-              <div
-                className={cn(
-                  'rounded-2xl px-3 py-2 text-sm leading-relaxed border',
-                  m.role === 'assistant'
-                    ? 'bg-gray-50 text-gray-700 border-gray-200'
-                    : 'bg-orange-50 text-gray-900 border-orange-200'
-                )}
-              >
-                {m.content}
-              </div>
-            )}
+            <div
+              className={cn(
+                'rounded-2xl px-3 py-2 text-sm leading-relaxed border whitespace-pre-wrap',
+                m.role === 'assistant' ? 'bg-gray-50 text-gray-700 border-gray-200' : 'bg-orange-50 text-gray-900 border-orange-200'
+              )}
+            >
+              {m.content}
+            </div>
           </div>
         ))}
+        {isProcessing && (
+          <div className="max-w-[92%]">
+            <div className="rounded-2xl px-3 py-2 text-sm leading-relaxed border bg-gray-50 text-gray-600 border-gray-200">
+              Thinking…
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-3 border-t border-gray-100">
-        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500">
+        <div
+          className={cn(
+            'flex items-center gap-2 rounded-xl border bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-orange-500/20',
+            disabled ? 'border-gray-200 opacity-60' : 'border-gray-200 focus-within:border-orange-500'
+          )}
+        >
           <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
+            value={inputValue}
+            onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') send()
+              if (e.key === 'Enter') onSend()
             }}
-            placeholder="Ask Lexora…"
+            placeholder={disabled ? 'Generating contract…' : 'Ask Lexora…'}
             className="flex-1 bg-transparent border-0 outline-none text-sm text-gray-900 placeholder-gray-400"
+            disabled={disabled}
           />
           <button
-            onClick={send}
-            className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors"
+            onClick={onSend}
+            className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors disabled:opacity-50"
             title="Send"
+            type="button"
+            disabled={disabled || !inputValue.trim()}
           >
             <Send className="w-4 h-4" />
           </button>
@@ -351,6 +279,20 @@ export default function ContractsWorkspacePage() {
 
   const [editorTitle, setEditorTitle] = useState(title)
   const [contractContent, setContractContent] = useState<PartialBlock[]>(defaultContent)
+  const [contractId, setContractId] = useState<string | null>(null)
+  const [generationPhase, setGenerationPhase] = useState<'idle' | 'streaming' | 'ready'>('idle')
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: 'Share what you want to build. I’ll draft a contract and keep it updated while we chat.',
+    },
+  ])
+  const [chatInput, setChatInput] = useState('')
+  const [isChatProcessing, setIsChatProcessing] = useState(false)
+  const streamedTextRef = useRef<string>('')
+  const streamControllerRef = useRef<AbortController | null>(null)
+  const startedRef = useRef(false)
   const [selectedText, setSelectedText] = useState('')
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
@@ -375,6 +317,71 @@ export default function ContractsWorkspacePage() {
   useEffect(() => {
     setEditorTitle(title)
   }, [title])
+
+  useEffect(() => {
+    if (startedRef.current) return
+    if (!initialPrompt?.trim()) return
+
+    startedRef.current = true
+    setMessages((prev) => [
+      ...prev,
+      { id: `u-${Date.now()}`, role: 'user', content: initialPrompt.trim() },
+      { id: `a-${Date.now() + 1}`, role: 'assistant', content: 'Generating a first draft now…' },
+    ])
+    setGenerationPhase('streaming')
+    setWorkspaceView('editor')
+
+    streamControllerRef.current = aiService.generateContractStream(initialPrompt.trim(), {
+      onChunk: (text) => {
+        streamedTextRef.current += text
+        const next = blocksFromMarkdown(streamedTextRef.current)
+        setContractContent(next.length ? next : defaultContent)
+      },
+      onDone: ({ contractId, title: generatedTitle, content }) => {
+        setContractId(contractId)
+        setGenerationPhase('ready')
+        if (generatedTitle) setEditorTitle(generatedTitle)
+        if (Array.isArray(content) && content.length > 0) setContractContent(content as any)
+        setMessages((prev) => [
+          ...prev,
+          { id: `a-${Date.now()}`, role: 'assistant', content: 'Draft ready. Keep chatting — I can update the document as you go.' },
+        ])
+      },
+      onError: (message) => {
+        setGenerationPhase('idle')
+        setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: message }])
+      },
+    }) as unknown as AbortController
+
+    return () => {
+      streamControllerRef.current?.abort()
+      streamControllerRef.current = null
+    }
+  }, [initialPrompt])
+
+  const sendChat = async () => {
+    const v = chatInput.trim()
+    if (!v) return
+    if (!contractId) return
+    if (isChatProcessing) return
+
+    setChatInput('')
+    setIsChatProcessing(true)
+    setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: 'user', content: v }])
+
+    try {
+      const resp = await aiService.sendMessage(contractId, v)
+      setMessages((prev) => [...prev, resp])
+      if (resp.contractUpdated && Array.isArray(resp.updatedContent) && resp.updatedContent.length > 0) {
+        setContractContent(resp.updatedContent as any)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to send message'
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: msg }])
+    } finally {
+      setIsChatProcessing(false)
+    }
+  }
 
   useEffect(() => {
     const handleSelection = () => {
@@ -424,7 +431,12 @@ export default function ContractsWorkspacePage() {
           {activeRail === 'chat' && (
             <ChatPanel
               title={title}
-              initialPrompt={initialPrompt}
+              messages={messages}
+              inputValue={chatInput}
+              onInputChange={setChatInput}
+              onSend={sendChat}
+              isProcessing={isChatProcessing}
+              disabled={generationPhase !== 'ready' || !contractId}
               onOpenInEditor={() => setFocusEditor(false)}
             />
           )}
@@ -542,37 +554,13 @@ export default function ContractsWorkspacePage() {
           {activeRail === 'chat' && (
             <ChatPanel
               title={title}
-              initialPrompt={initialPrompt}
+              messages={messages}
+              inputValue={chatInput}
+              onInputChange={setChatInput}
+              onSend={sendChat}
+              isProcessing={isChatProcessing}
+              disabled={generationPhase !== 'ready' || !contractId}
               onOpenInEditor={() => setWorkspaceView('editor')}
-              onOpenClauseInEditor={({ title: clauseTitle, text }) => {
-                setContractContent((prev) => [
-                  ...prev,
-                  {
-                    type: 'heading',
-                    props: { level: 2 },
-                    content: [{ type: 'text', text: clauseTitle, styles: { bold: true } }],
-                  },
-                  {
-                    type: 'paragraph',
-                    content: [{ type: 'text', text, styles: {} }],
-                  },
-                ] as PartialBlock[])
-                setWorkspaceView('editor')
-              }}
-              onInsertClauseIntoContract={({ title: clauseTitle, text }) => {
-                setContractContent((prev) => [
-                  ...prev,
-                  {
-                    type: 'heading',
-                    props: { level: 2 },
-                    content: [{ type: 'text', text: clauseTitle, styles: { bold: true } }],
-                  },
-                  {
-                    type: 'paragraph',
-                    content: [{ type: 'text', text, styles: {} }],
-                  },
-                ] as PartialBlock[])
-              }}
             />
           )}
           {activeRail === 'vars' && (
