@@ -3,6 +3,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp?: string
+  contractUpdated?: boolean
+  updatedContent?: any[]
 }
 
 export interface AIReviewIssue {
