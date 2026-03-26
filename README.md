@@ -189,26 +189,150 @@ base64 < jwt.key.pub | tr -d '\n'   # → JWT_ACCESS_TOKEN_SECRET_PUBLIC
 
 ## AI Features
 
-### Architecture
+### Vectorless RAG — PageIndex-Style Retrieval
 
-Lexora uses a **PageIndex-style vectorless retrieval** approach inspired by [VectifyAI/PageIndex](https://github.com/VectifyAI/PageIndex). Instead of chunking documents and embedding them in a vector database, it:
+Traditional RAG systems chunk documents into fixed-size pieces, embed them in a vector database, and retrieve by cosine similarity. Lexora takes a fundamentally different approach inspired by [VectifyAI/PageIndex](https://github.com/VectifyAI/PageIndex) — **no vector database, no embeddings, no chunking**. Instead, it uses the document's own structure (headings, sections) as a navigable index and lets the LLM reason about which sections to read, exactly like a human uses a table of contents.
 
-1. **Builds a hierarchical tree index** from the contract's BlockNote blocks, mapping headings to tree nodes with precise line ranges
-2. **Selects relevant nodes** via an LLM reasoning step (the model navigates the tree like a human would use a table of contents)
-3. **Generates grounded answers** using only the selected source lines, with validated citations (`startLine`, `endLine`, `quote`)
-4. **Validates citations server-side** — ensures quoted text is an exact substring of the cited lines and falls within selected source nodes
+The core implementation lives in **`server/src/services/pageIndex/contractTree.ts`**.
+
+#### Why Vectorless?
+
+| | Traditional Vector RAG | Lexora's PageIndex Approach |
+|---|---|---|
+| **Retrieval** | Cosine similarity on embeddings | LLM reasons over a heading tree |
+| **Infrastructure** | Requires vector DB (Pinecone, Chroma, etc.) | Zero extra infrastructure |
+| **Citations** | Approximate chunk references | Exact line numbers, verifiable quotes |
+| **Accuracy** | Semantic drift from embedding noise | LLM reads the actual structure |
+| **Latency** | Embedding + vector search + LLM | Two LLM calls (selection + answer) |
+| **Maintenance** | Re-embed on every edit | Tree rebuilt on the fly per request |
+
+#### How It Works — Step by Step
+
+**Step 1: Build the Hierarchical Tree Index**
+
+`buildContractTreeIndex()` converts the contract's BlockNote blocks into a tree mirroring the document's heading hierarchy. Each node tracks exact 1-based line ranges.
+
+```
+Document (root)                          lines 1-12
+├── Mutual Non-Disclosure Agreement      lines 1-2   (H1)
+├── 1. Definition of Confidential Info   lines 3-4   (H2)
+├── 2. Obligations of Receiving Party    lines 5-6   (H2)
+├── 3. Term and Termination              lines 7-8   (H2)
+├── 4. Limitation of Liability           lines 9-10  (H2)
+└── 5. Governing Law                     lines 11-12 (H2)
+```
+
+Key data structures:
+
+```typescript
+type ContractTreeNode = {
+  nodeId: string       // e.g. "n-0", "n-1"
+  parentId?: string    // parent node for hierarchy
+  title: string        // heading text
+  level: number        // heading depth (1=H1, 2=H2, ...)
+  startLine: number    // 1-based inclusive
+  endLine: number      // 1-based inclusive
+  summary: string      // first ~300 chars of node content
+  children: ContractTreeNode[]
+}
+
+type ContractTreeIndex = {
+  root: ContractTreeNode
+  nodesById: Record<string, ContractTreeNode>
+  nodesInOrder: ContractTreeNode[]
+  lines: string[]      // flat array of all document lines
+}
+```
+
+Block types (paragraph, heading, bullet list, numbered list) are converted to stable text lines. Headings become `## Heading Text`, bullets become `• Item text`. This gives every piece of content a deterministic line number for citation.
+
+**Step 2: LLM-Driven Node Selection (Reasoning-Based Retrieval)**
+
+`collectNodesForPrompt()` performs a BFS traversal to select up to 45 candidate nodes (higher-level structure first, deeper nodes after). These candidates are sent to the LLM in a structured prompt:
+
+```
+You are a reasoning-based document retriever.
+Given the user question, select up to 6 nodeIds that most likely contain the answer.
+
+Tree nodes:
+- n-0 (parent: root)
+  title: 1. Definition of Confidential Information
+  level: 2
+  summary: "Confidential Information" means any non-public...
+  lines: 3-4
+- n-1 (parent: root)
+  title: 2. Obligations of Receiving Party
+  ...
+```
+
+The LLM returns `{ "selectedNodeIds": ["n-1", "n-2"], "notes": "..." }` — it *reasons* about which sections are relevant rather than relying on embedding similarity.
+
+**Step 3: Source Extraction with Line Numbers**
+
+`formatSourceLines()` takes each selected node and formats its content with numbered lines:
+
+```
+Source:
+nodeId: n-1
+title: 2. Obligations of Receiving Party
+lines: 5-6
+content:
+[5] ## 2. Obligations of Receiving Party
+[6] The Receiving Party shall: (a) hold Confidential Information in strict confidence; (b) not disclose it to any third party...
+```
+
+These numbered sources are injected into the final answer prompt, forcing the LLM to ground its response in specific lines.
+
+**Step 4: Grounded Answer Generation**
+
+The LLM is instructed to respond in structured JSON with explicit citations:
+
+```json
+{
+  "reply": "The Receiving Party must keep information confidential, cannot share it without consent, may only use it for evaluating the relationship, and must return or destroy it on request.",
+  "editedContract": null,
+  "citations": [
+    {
+      "startLine": 6,
+      "endLine": 6,
+      "quote": "(a) hold Confidential Information in strict confidence; (b) not disclose it to any third party without prior written consent"
+    }
+  ]
+}
+```
+
+**Step 5: Server-Side Citation Validation**
+
+Every citation is validated before reaching the frontend:
+
+1. `startLine` and `endLine` must be valid numbers within document bounds
+2. The `quote` must be an **exact substring** of the text at those line numbers
+3. The cited line range must fall within one of the LLM-selected source nodes
+4. If all citations fail validation, a minimal fallback citation to the first selected node is generated
+
+This means **every citation the user sees is cryptographically verifiable** against the actual document — no hallucinated references.
+
+#### Key Functions in `contractTree.ts`
+
+| Function | Purpose |
+|----------|---------|
+| `buildContractTreeIndex(blocks)` | Converts BlockNote blocks into a hierarchical tree with line mappings |
+| `collectNodesForPrompt(index, maxNodes, maxDepth)` | BFS traversal to select candidate nodes for the LLM |
+| `formatSourceLines(index, node, maxLinesPerNode)` | Formats a node's content as `[LINE_NUM] text` for the prompt |
+| `blockToLines(block)` | Converts a single BlockNote block into stable text lines |
+| `getBlockText(block)` | Extracts raw text from a block's inline content array |
 
 ### Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/ai/chat/:contractId` | POST | Chat with a contract — grounded answers with citations |
-| `/ai/review/:contractId` | POST | AI review — risks, missing clauses, suggestions |
-| `/ai/editor/rewrite` | POST | Rewrite selected text in a given tone |
+| `/ai/chat/:contractId` | POST | Chat with a contract — grounded answers with line-level citations |
+| `/ai/review/:contractId` | POST | AI review — risks, missing clauses, suggestions with severity |
+| `/ai/editor/rewrite` | POST | Rewrite selected text in formal/friendly/concise tone |
 | `/ai/editor/explain` | POST | Plain-language clause explanation |
 | `/ai/editor/summarize` | POST | Structured contract summary |
-| `/ai/editor/generate-clause` | POST | Generate a clause from a prompt |
-| `/ai/editor/suggest-clauses` | POST | Suggest missing clauses with reasoning |
+| `/ai/editor/generate-clause` | POST | Generate a new clause from a natural language prompt |
+| `/ai/editor/suggest-clauses` | POST | Analyze contract and suggest missing clauses with reasoning |
 
 ### LLM Fallback Chain
 
@@ -220,7 +344,7 @@ Ollama (configurable model, e.g. qwen3:4b)
 ValidationError thrown
 ```
 
-Retry logic handles both 429 (rate limit) and 503 (service unavailable) errors with exponential backoff.
+Retry logic handles 429 (rate limit), 503 (service unavailable), and "high demand" errors with exponential backoff (up to 4 attempts, max 32s delay).
 
 ## API Endpoints
 
