@@ -5,6 +5,13 @@ export interface ChatMessage {
   timestamp?: string
   contractUpdated?: boolean
   updatedContent?: any[]
+  citations?: ChatCitation[]
+}
+
+export interface ChatCitation {
+  startLine: number
+  endLine: number
+  quote: string
 }
 
 export interface AIReviewIssue {

@@ -8,15 +8,69 @@ type GenerateStreamEvent =
   | { type: 'done'; contractId: string; title: string; content: any[] }
   | { type: 'error'; message: string }
 
+export type ReviewIssue = {
+  id: string
+  type: 'risk' | 'missing' | 'inconsistency' | 'suggestion'
+  severity: 'low' | 'medium' | 'high'
+  title: string
+  description: string
+  suggestion: string
+}
+
+export type ClauseSuggestion = {
+  id: string
+  title: string
+  description: string
+  reason: string
+  content: string
+}
+
 export const aiService = {
   async sendMessage(contractId: string, message: string): Promise<ChatMessage> {
     const { data } = await apiClient.post<ApiResponse<ChatMessage>>(`/ai/chat/${contractId}`, { message })
     return data.data
   },
 
-  async reviewContract(contractId: string): Promise<any> {
-    const { data } = await apiClient.post(`/ai/review/${contractId}`)
-    return data
+  async reviewContract(contractId: string): Promise<ReviewIssue[]> {
+    const { data } = await apiClient.post<ApiResponse<ReviewIssue[]>>(`/ai/review/${contractId}`)
+    return data.data
+  },
+
+  async rewriteSelection(contractId: string, selection: string, tone: 'formal' | 'friendly' | 'concise'): Promise<string> {
+    const { data } = await apiClient.post<ApiResponse<{ rewrittenText: string }>>('/ai/editor/rewrite', {
+      contractId,
+      selection,
+      tone,
+    })
+    return data.data.rewrittenText
+  },
+
+  async explainClause(contractId: string, clauseText: string): Promise<string> {
+    const { data } = await apiClient.post<ApiResponse<{ explanation: string }>>('/ai/editor/explain', {
+      contractId,
+      clauseText,
+    })
+    return data.data.explanation
+  },
+
+  async summarizeContract(contractId: string): Promise<string> {
+    const { data } = await apiClient.post<ApiResponse<{ summary: string }>>('/ai/editor/summarize', { contractId })
+    return data.data.summary
+  },
+
+  async generateClause(contractId: string, prompt: string): Promise<string> {
+    const { data } = await apiClient.post<ApiResponse<{ clause: string }>>('/ai/editor/generate-clause', {
+      contractId,
+      prompt,
+    })
+    return data.data.clause
+  },
+
+  async suggestClauses(contractId: string): Promise<ClauseSuggestion[]> {
+    const { data } = await apiClient.post<ApiResponse<{ suggestions: ClauseSuggestion[] }>>('/ai/editor/suggest-clauses', {
+      contractId,
+    })
+    return data.data.suggestions
   },
 
   generateContractStream: (

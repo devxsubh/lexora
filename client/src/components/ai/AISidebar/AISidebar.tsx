@@ -61,6 +61,18 @@ export const AIChatContent: React.FC<AIChatContentProps> = ({
               }`}
             >
               <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+              {message.role === 'assistant' && message.citations && message.citations.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-200 text-[11px] text-gray-500">
+                  <div className="font-medium text-gray-600">Sources</div>
+                  <div className="mt-1 space-y-1">
+                    {message.citations.map((c, idx) => (
+                      <div key={`${c.startLine}-${c.endLine}-${idx}`} className="leading-snug">
+                        Lines {c.startLine}-{c.endLine}: {c.quote}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {message.timestamp && (
                 <span className="block mt-1 text-[10px] opacity-70">
                   {new Date(message.timestamp).toLocaleTimeString([], {
