@@ -2,7 +2,14 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function isGeminiRateLimitError(err: unknown): boolean {
 	const msg = err instanceof Error ? err.message : String(err);
-	return msg.includes('429') || msg.includes('Too Many Requests') || msg.includes('RESOURCE_EXHAUSTED');
+	return (
+		msg.includes('429') ||
+		msg.includes('Too Many Requests') ||
+		msg.includes('RESOURCE_EXHAUSTED') ||
+		msg.includes('503') ||
+		msg.includes('Service Unavailable') ||
+		msg.includes('high demand')
+	);
 }
 
 function retryDelayMs(err: unknown, attempt: number): number {

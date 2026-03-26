@@ -56,6 +56,8 @@ const envValidate = Joi.object()
 		LOG_TZ: Joi.string().allow('').empty('').default(''),
 
 		GEMINI_API_KEY: Joi.string().allow('').empty('').default(''),
+		OLLAMA_BASE_URL: Joi.string().allow('').empty('').default('http://localhost:11434'),
+		OLLAMA_MODEL: Joi.string().allow('').empty('').default(''),
 		/** When false (default), /health/external only checks that GEMINI_API_KEY is set — no API call (saves quota). */
 		GEMINI_HEALTH_LIVE_PROBE: Joi.boolean().allow('').empty('').default(false),
 
@@ -139,6 +141,8 @@ export interface AppConfig {
 	LOG_TZ: string;
 	GEMINI_API_KEY: string;
 	GEMINI_HEALTH_LIVE_PROBE: boolean;
+	OLLAMA_BASE_URL: string;
+	OLLAMA_MODEL: string;
 
 	API_V1_DEPRECATION_LINK: string;
 	API_V1_SUNSET: string;
@@ -204,6 +208,8 @@ const config: AppConfig = {
 
 	GEMINI_API_KEY: (env.GEMINI_API_KEY as string) ?? '',
 	GEMINI_HEALTH_LIVE_PROBE: env.GEMINI_HEALTH_LIVE_PROBE === true || env.GEMINI_HEALTH_LIVE_PROBE === 'true',
+	OLLAMA_BASE_URL: (env.OLLAMA_BASE_URL as string) ?? 'http://localhost:11434',
+	OLLAMA_MODEL: (env.OLLAMA_MODEL as string) ?? '',
 
 	API_V1_DEPRECATION_LINK: (env.API_V1_DEPRECATION_LINK as string) ?? '',
 	API_V1_SUNSET: (env.API_V1_SUNSET as string) ?? '',

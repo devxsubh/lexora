@@ -1,29 +1,102 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import config from '~/config/config';
 import { withGeminiRetry } from '~/utils/geminiRetry';
-import Contract from '~/models/contractModel';
+import Contract, { type IBlock } from '~/models/contractModel';
 import AiChatSession from '~/models/aiChatSessionModel';
-import AiMessage, { IAiMessageDocument } from '~/models/aiMessageModel';
+import AiMessage from '~/models/aiMessageModel';
 import Activity from '~/models/activityModel';
 import { NotFoundError, ValidationError } from '~/utils/domainErrors';
 import { v4 as uuidv4 } from 'uuid';
+import { buildContractTreeIndex, collectNodesForPrompt, formatSourceLines } from '~/services/pageIndex/contractTree';
 
-function getModel() {
-	if (!config.GEMINI_API_KEY) {
-		throw new ValidationError('AI features require GEMINI_API_KEY to be configured');
-	}
+function getGeminiModel() {
+	if (!config.GEMINI_API_KEY) return null;
 	const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
 	return genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 }
 
+async function generateWithOllama(prompt: string): Promise<{ response: { text: () => string } }> {
+	const baseUrl = (config.OLLAMA_BASE_URL || '').trim();
+	const model = (config.OLLAMA_MODEL || '').trim();
+	if (!baseUrl || !model) {
+		throw new ValidationError('AI features require GEMINI_API_KEY or OLLAMA_MODEL to be configured');
+	}
+
+	const res = await fetch(`${baseUrl}/api/generate`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ model, prompt, stream: false })
+	});
+	if (!res.ok) {
+		throw new ValidationError(`Ollama request failed (${res.status})`);
+	}
+
+	const data = (await res.json()) as { response?: string };
+	return { response: { text: () => data.response ?? '' } };
+}
+
+type StreamChunk = { text: () => string };
+
+async function* generateStreamWithOllama(prompt: string): AsyncGenerator<StreamChunk> {
+	const baseUrl = (config.OLLAMA_BASE_URL || '').trim();
+	const model = (config.OLLAMA_MODEL || '').trim();
+	if (!baseUrl || !model) {
+		throw new ValidationError('AI features require GEMINI_API_KEY or OLLAMA_MODEL to be configured');
+	}
+
+	const res = await fetch(`${baseUrl}/api/generate`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ model, prompt, stream: true })
+	});
+	if (!res.ok || !res.body) {
+		throw new ValidationError(`Ollama streaming request failed (${res.status})`);
+	}
+
+	const reader = res.body.getReader();
+	const decoder = new TextDecoder('utf-8');
+	let buffer = '';
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+
+		buffer += decoder.decode(value, { stream: true });
+		const parts = buffer.split('\n');
+		buffer = parts.pop() || '';
+
+		for (const part of parts) {
+			const trimmed = part.trim();
+			if (!trimmed) continue;
+			try {
+				const json = JSON.parse(trimmed) as { response?: string; done?: boolean };
+				if (typeof json.response === 'string' && json.response.length > 0) {
+					yield { text: () => json.response as string };
+				}
+				if (json.done) return;
+			} catch {
+				// Ignore partial JSON fragments.
+			}
+		}
+	}
+}
+
 async function generateWithRetry(prompt: string) {
-	const model = getModel();
-	return withGeminiRetry(() => model.generateContent(prompt));
+	const geminiModel = getGeminiModel();
+	if (geminiModel) {
+		return withGeminiRetry(() => geminiModel.generateContent(prompt));
+	}
+
+	return generateWithOllama(prompt);
 }
 
 async function generateStreamWithRetry(prompt: string) {
-	const model = getModel();
-	return withGeminiRetry(() => model.generateContentStream(prompt));
+	const geminiModel = getGeminiModel();
+	if (geminiModel) {
+		return withGeminiRetry(() => geminiModel.generateContentStream(prompt));
+	}
+
+	return { stream: generateStreamWithOllama(prompt) };
 }
 
 /** Minimal Gemini call for connectivity checks (uses quota). */
@@ -39,17 +112,23 @@ function blocksToText(blocks: Record<string, unknown>[]): string {
 	return blocks
 		.map((block) => {
 			const contentArr = block.content as Array<{ type: string; text?: string }> | undefined;
-			const text = contentArr
-				?.filter((c) => c.type === 'text' && c.text)
-				.map((c) => c.text)
-				.join('') ?? '';
+			const text =
+				contentArr
+					?.filter((c) => c.type === 'text' && c.text)
+					.map((c) => c.text)
+					.join('') ?? '';
 
 			const children = block.children as Record<string, unknown>[] | undefined;
 			const childText = children ? blocksToText(children) : '';
 
-			const prefix = block.type === 'heading' ? '\n## ' :
-				block.type === 'bulletListItem' ? '• ' :
-				block.type === 'numberedListItem' ? '- ' : '';
+			const prefix =
+				block.type === 'heading'
+					? '\n## '
+					: block.type === 'bulletListItem'
+					? '• '
+					: block.type === 'numberedListItem'
+					? '- '
+					: '';
 
 			return `${prefix}${text}${childText ? '\n' + childText : ''}`;
 		})
@@ -58,47 +137,50 @@ function blocksToText(blocks: Record<string, unknown>[]): string {
 }
 
 function textToBlocks(text: string): Record<string, unknown>[] {
-	return text.split('\n').filter(Boolean).map((line) => {
-		const trimmed = line.trim();
-		if (trimmed.startsWith('# ')) {
+	return text
+		.split('\n')
+		.filter(Boolean)
+		.map((line) => {
+			const trimmed = line.trim();
+			if (trimmed.startsWith('# ')) {
+				return {
+					id: uuidv4(),
+					type: 'heading',
+					props: { level: 1 },
+					content: [{ type: 'text', text: trimmed.replace(/^#\s+/, ''), styles: {} }]
+				};
+			}
+			if (trimmed.startsWith('## ')) {
+				return {
+					id: uuidv4(),
+					type: 'heading',
+					props: { level: 2 },
+					content: [{ type: 'text', text: trimmed.replace(/^##\s+/, ''), styles: {} }]
+				};
+			}
+			if (trimmed.startsWith('### ')) {
+				return {
+					id: uuidv4(),
+					type: 'heading',
+					props: { level: 3 },
+					content: [{ type: 'text', text: trimmed.replace(/^###\s+/, ''), styles: {} }]
+				};
+			}
+			if (trimmed.startsWith('• ') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+				return {
+					id: uuidv4(),
+					type: 'bulletListItem',
+					props: {},
+					content: [{ type: 'text', text: trimmed.replace(/^[•\-*]\s+/, ''), styles: {} }]
+				};
+			}
 			return {
 				id: uuidv4(),
-				type: 'heading',
-				props: { level: 1 },
-				content: [{ type: 'text', text: trimmed.replace(/^#\s+/, ''), styles: {} }]
-			};
-		}
-		if (trimmed.startsWith('## ')) {
-			return {
-				id: uuidv4(),
-				type: 'heading',
-				props: { level: 2 },
-				content: [{ type: 'text', text: trimmed.replace(/^##\s+/, ''), styles: {} }]
-			};
-		}
-		if (trimmed.startsWith('### ')) {
-			return {
-				id: uuidv4(),
-				type: 'heading',
-				props: { level: 3 },
-				content: [{ type: 'text', text: trimmed.replace(/^###\s+/, ''), styles: {} }]
-			};
-		}
-		if (trimmed.startsWith('• ') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-			return {
-				id: uuidv4(),
-				type: 'bulletListItem',
+				type: 'paragraph',
 				props: {},
-				content: [{ type: 'text', text: trimmed.replace(/^[•\-*]\s+/, ''), styles: {} }]
+				content: [{ type: 'text', text: trimmed, styles: {} }]
 			};
-		}
-		return {
-			id: uuidv4(),
-			type: 'paragraph',
-			props: {},
-			content: [{ type: 'text', text: trimmed, styles: {} }]
-		};
-	});
+		});
 }
 
 type StreamEvent =
@@ -121,9 +203,7 @@ export async function sendChatMessage(contractId: string, userId: string, messag
 		content: message
 	});
 
-	const history = await AiMessage.find({ sessionId: session._id })
-		.sort({ createdAt: 1 })
-		.limit(20);
+	const history = await AiMessage.find({ sessionId: session._id }).sort({ createdAt: 1 }).limit(20);
 
 	const contractText = blocksToText(contract.content as unknown as Record<string, unknown>[]);
 
@@ -157,12 +237,32 @@ Provide a helpful, accurate response. If the user asks to modify the contract, d
 }
 
 function tryParseJsonResponse<T>(text: string): T | null {
-	const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+	const cleaned = text
+		.replace(/```json\n?/g, '')
+		.replace(/```\n?/g, '')
+		.trim();
 	try {
 		return JSON.parse(cleaned) as T;
 	} catch {
 		return null;
 	}
+}
+
+type GroundedCitation = {
+	startLine: number;
+	endLine: number;
+	quote: string;
+};
+
+function isEditRequest(message: string): boolean {
+	const m = message.toLowerCase();
+	// Heuristic: if the user asks to change content, we keep the current "editedContract" behavior.
+	return /(modify|edit|rewrite|change|insert|remove|replace|amend|update|propose)\b/i.test(m);
+}
+
+function buildContractTextForEdits(contractBlocks: IBlock[]): string {
+	// Uses the existing blocksToText formatting so the editor prompt stays consistent.
+	return blocksToText(contractBlocks as unknown as Record<string, unknown>[]);
 }
 
 export async function sendChatMessageWithEdits(contractId: string, userId: string, message: string) {
@@ -180,39 +280,135 @@ export async function sendChatMessageWithEdits(contractId: string, userId: strin
 		content: message
 	});
 
-	const history = await AiMessage.find({ sessionId: session._id })
-		.sort({ createdAt: 1 })
-		.limit(20);
+	const history = await AiMessage.find({ sessionId: session._id }).sort({ createdAt: 1 }).limit(20);
 
-	const contractText = blocksToText(contract.content as unknown as Record<string, unknown>[]);
+	const contractBlocks = (contract.content ?? []) as unknown as IBlock[];
+	const contractTextForEdits = buildContractTextForEdits(contractBlocks);
+
+	const needsEdit = isEditRequest(message);
+
+	// Build a tree index for line-level citations (verifiable, grounded retrieval).
+	const treeIndex = buildContractTreeIndex(contractBlocks);
+
+	// Pick a compact, hierarchical subset of nodes to show the model (tree-search without vectors).
+	const candidateNodes = collectNodesForPrompt(treeIndex, needsEdit ? 60 : 45, 5);
+	const selectionPrompt = `You are a reasoning-based document retriever.
+
+You will be given a hierarchical tree index of a contract, derived from its headings.
+Each node has:
+- nodeId (unique)
+- title
+- level (heading depth)
+- summary (short)
+- startLine/endLine (1-based, inclusive)
+
+Given the user question, select up to ${needsEdit ? 8 : 6} nodeIds that most likely contain the answer.
+
+Rules:
+- Only select nodeIds that exist in the provided list.
+- Prefer more specific (deeper) nodes when relevant.
+- If nothing fits, return an empty array.
+
+Return ONLY valid JSON:
+{
+  "selectedNodeIds": string[],
+  "notes": string
+}
+
+User question:
+${message}
+
+Tree nodes:
+${candidateNodes
+	.map((n) => {
+		const parent = n.parentId ? ` (parent: ${n.parentId})` : '';
+		return `- ${n.nodeId}${parent}
+  title: ${n.title}
+  level: ${n.level}
+  summary: ${n.summary}
+  lines: ${n.startLine}-${n.endLine}`;
+	})
+	.join('\n')}
+`;
+
+	const selectionResult = await generateWithRetry(selectionPrompt);
+	const selectionText = selectionResult.response.text();
+	const selected = tryParseJsonResponse<{ selectedNodeIds: string[] }>(selectionText)?.selectedNodeIds ?? [];
+
+	const fallbackSelected =
+		selected.length > 0
+			? selected
+			: candidateNodes
+					.filter((n) => n.nodeId !== 'root')
+					.slice(0, needsEdit ? 6 : 4)
+					.map((n) => n.nodeId);
+
+	const selectedNodes = fallbackSelected
+		.map((id) => treeIndex.nodesById[id])
+		.filter(Boolean)
+		.slice(0, needsEdit ? 8 : 6);
+
+	const effectiveSelectedNodes = selectedNodes.length > 0 ? selectedNodes : [treeIndex.root];
+
+	const maxLinesPerNode = needsEdit ? 18 : 14;
+	const sourcesForPrompt = effectiveSelectedNodes
+		.map((n) => {
+			const sourceLines = formatSourceLines(treeIndex, n, maxLinesPerNode);
+			return `Source:
+nodeId: ${n.nodeId}
+title: ${n.title}
+lines: ${n.startLine}-${n.endLine}
+content:
+${sourceLines}`;
+		})
+		.join('\n\n');
+
+	const chatHistoryText = history.map((m) => `${m.role}: ${m.content}`).join('\n');
+
+	const editContractContext = needsEdit ? `\n\nFull contract content (for edits only):\n${contractTextForEdits}` : '';
 
 	const prompt = `You are a legal contract assistant for the document titled "${contract.title}".
 
-Contract content:
-${contractText}
+You MUST ground your reply in the provided sources. Do not use unstated knowledge.
+If the answer is not present in the sources, say so explicitly.
 
-Chat history:
-${history.map((m) => `${m.role}: ${m.content}`).join('\n')}
+Sources are taken from the contract and are labeled with 1-based line numbers so they are auditable.
 
-User: ${message}
+Chat history (for context only):
+${chatHistoryText}
+
+User:
+${message}
+
+${sourcesForPrompt ? `Sources:\n${sourcesForPrompt}\n\n` : ''}
+${editContractContext}
 
 Respond ONLY in valid JSON with this exact shape:
 {
   "reply": "string",
-  "editedContract": "string | null"
+  "editedContract": "string | null",
+  "citations": Array<{
+    "startLine": number,
+    "endLine": number,
+    "quote": string
+  }>
 }
 
 Rules:
 - "reply" is your conversational answer to the user.
-- Set "editedContract" to a full updated contract in plain text with markdown-style headings (#, ##, ###) ONLY when the user explicitly asks to modify the contract content.
-- Otherwise set "editedContract" to null.
+- "citations" must be non-empty and must refer to the sources above.
+- Each citation's "quote" must be an exact substring from the provided sources' line text.
+- Set "editedContract" to a full updated contract in plain text with markdown-style headings (#, ##, ###) ONLY when the user explicitly asks to modify the contract content; otherwise set it to null.
 - Do not include code fences or extra keys.`;
 
 	const result = await generateWithRetry(prompt);
 	const responseText = result.response.text();
 
-	const parsed = tryParseJsonResponse<{ reply: string; editedContract: string | null }>(responseText);
+	const parsed = tryParseJsonResponse<{ reply: string; editedContract: string | null; citations?: GroundedCitation[] }>(
+		responseText
+	);
 	const reply = parsed?.reply || responseText;
+	const citations = parsed?.citations || [];
 
 	let contractUpdated = false;
 	let updatedContent: Record<string, unknown>[] | undefined;
@@ -223,6 +419,32 @@ Rules:
 		contractUpdated = true;
 		updatedContent = newBlocks;
 	}
+
+	// Validate citations against the selected source ranges and ensure quote grounding.
+	const allLines = treeIndex.lines;
+	const validatedCitations = citations.filter((c) => {
+		if (!c || typeof c.startLine !== 'number' || typeof c.endLine !== 'number' || !c.quote) return false;
+		if (c.startLine < 1 || c.endLine < c.startLine) return false;
+		if (c.endLine > allLines.length) return false;
+		const rangeText = allLines.slice(c.startLine - 1, c.endLine).join('\n');
+		const quoted = rangeText.includes(c.quote);
+		if (!quoted) return false;
+
+		// Ensure the cited line range falls within one of the selected source nodes.
+		return effectiveSelectedNodes.some((n) => c.startLine >= n.startLine && c.endLine <= n.endLine);
+	});
+
+	const finalCitations =
+		validatedCitations.length > 0
+			? validatedCitations
+			: effectiveSelectedNodes.length > 0
+			? (() => {
+					const first = effectiveSelectedNodes[0];
+					const quote = allLines.slice(first.startLine - 1, first.startLine).join('\n');
+					if (!quote) return [];
+					return [{ startLine: first.startLine, endLine: first.startLine, quote }];
+			  })()
+			: [];
 
 	const assistantMsg = await AiMessage.create({
 		sessionId: session._id,
@@ -236,7 +458,9 @@ Rules:
 		content: reply,
 		timestamp: assistantMsg.createdAt?.toISOString(),
 		contractUpdated,
-		updatedContent
+		updatedContent,
+		// Returned to frontend for traceable/verify-able answers.
+		citations: finalCitations
 	};
 }
 
@@ -325,7 +549,10 @@ Only return the JSON array, no other text. If the contract is empty or has very 
 
 	let issues;
 	try {
-		const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+		const cleaned = responseText
+			.replace(/```json\n?/g, '')
+			.replace(/```\n?/g, '')
+			.trim();
 		issues = JSON.parse(cleaned);
 	} catch {
 		issues = [
@@ -435,7 +662,10 @@ Only return the JSON array, no other text.`;
 
 	let suggestions;
 	try {
-		const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+		const cleaned = responseText
+			.replace(/```json\n?/g, '')
+			.replace(/```\n?/g, '')
+			.trim();
 		suggestions = JSON.parse(cleaned);
 	} catch {
 		suggestions = [];
